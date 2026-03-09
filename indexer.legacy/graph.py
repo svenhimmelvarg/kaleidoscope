@@ -775,8 +775,8 @@ def sink(outputs):
         week = f"{str(year)[-2:]}{week_num:02d}"
         weekday = f"{str(year)[-2:]}{week_num:02d}{day_num}"
         d1 = fn_create_meilisearch_doc(data1, ctx={"cache._id": doc["id"]})
-        d1["image_url"] = f"{doc['source_path']}".replace("/home/nyika/apps/", "")
-        d1["source"] = d1["image_url"].replace("/mnt/sdc1/apps/", "").split("/")[0]
+        d1["image_url"] = f"{doc['source_path']}"
+        d1["source"] = d1["image_url"].split("/")[0]
         d1["dd"] = day
         d1["dayOfWeek"] = dow
         d1["mm"] = month
