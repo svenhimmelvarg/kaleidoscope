@@ -1,0 +1,35 @@
+{
+  "name": "kaleidescope",
+  "version": "0.3.0",
+  "description": "<div align=\"center\">   <br />   <img src=\"docs/banner.gif\" alt=\"Kaleidescope Banner\" width=\"100%\" />   <br />   <h1>op - Kaleidescope CLI Tool</h1>   <br /> </div>",
+  "main": "index.js",
+  "type": "module",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "vite kaleidescope.ui",
+    "build": "vite build kaleidescope.ui",
+    "preview": "vite preview kaleidescope.ui",
+    "check": "svelte-check --tsconfig ./kaleidescope.ui/tsconfig.app.json && tsc -p kaleidescope.ui/tsconfig.node.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "convex": "^1.32.0",
+    "convex-svelte": "^0.0.11",
+    "meilisearch": "^0.54.0",
+    "svelte-spa-router": "^4.0.1"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tsconfig/svelte": "^5.0.5",
+    "@types/node": "^24.6.0",
+    "@typescript-eslint/types": "^8.56.1",
+    "svelte": "^5.39.6",
+    "svelte-check": "^4.3.2",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
