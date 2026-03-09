@@ -76,6 +76,12 @@ To run the search module:
 op serve search
 ```
 
+Run convex backend 
+
+```bash
+op serve convex
+```
+
 ## CLI Usage
 
 The `op` CLI provides several other commands. You can explore them using the `--help` flag:
