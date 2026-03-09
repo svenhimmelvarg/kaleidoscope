@@ -97,8 +97,16 @@ run_convex_backend() {
     export CONVEX_SELF_HOSTED_URL="http://127.0.0.1:${port}"
     export CONVEX_SELF_HOSTED_ADMIN_KEY="${admin_key}"
 
+    echo "INFO: Checking if convex npm package is installed..."
+    if ! npm ls convex > /dev/null 2>&1; then
+        echo "INFO: convex npm package not found. Installing..."
+        npm install convex
+    else
+        echo "INFO: convex npm package is installed."
+    fi
+
     # Default OP_ENV_FILE if not set
-    if [ -z "$OP_ENV_FILE" ]; then
+    if [ -z "${OP_ENV_FILE:-}" ]; then
         OP_ENV_FILE=".env.local"
     fi
 
