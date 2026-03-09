@@ -26,8 +26,8 @@ class Component:
 COMPONENTS = [
     Component(name="search", slot=0, command="op serve search", optional=False),
     Component(name="indexer.legacy", slot=1, command="op serve indexer.legacy", optional=False),
-    Component(name="kaleidoscope", slot=1, command="op serve kaleidoscope", optional=False),
-    Component(name="kaleidoscope.ui", slot=2, command="op serve kaleidoscope.ui", optional=True),
+    Component(name="kaleidescope", slot=1, command="op serve kaleidescope", optional=False),
+    Component(name="kaleidescope.ui", slot=2, command="op serve kaleidescope.ui", optional=True),
 ]
 
 
