@@ -30,6 +30,8 @@ dependencies = [
     "rich>=13.0.0",
     "pydantic>=2.0.0",
     "honcho>=1.0.0",
+    "cryptography>=41.0.0",
+    "protobuf>=4.21.0",
 ]
 
 [project.optional-dependencies]
