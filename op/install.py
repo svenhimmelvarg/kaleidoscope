@@ -2,6 +2,7 @@ import os
 import stat
 import platform
 import logging
+import zipfile
 import requests
 from dataclasses import dataclass
 from typing import Dict
@@ -76,3 +77,62 @@ def download_meilisearch(dest_path: str) -> None:
         os.chmod(dest_path, st.st_mode | stat.S_IEXEC)
     
     logger.info(f"Successfully downloaded Meilisearch to {dest_path}")
+
+def get_convex_url(plat_info: PlatformInfo) -> str:
+    base_url = "https://github.com/get-convex/convex-backend/releases/download/precompiled-2026-03-06-d9f6aa1"
+    
+    os_map: Dict[str, str] = {
+        "darwin": "apple-darwin",
+        "linux": "unknown-linux-gnu",
+        "windows": "pc-windows-msvc"
+    }
+    
+    os_str = os_map.get(plat_info.os_name, "unknown-linux-gnu")
+    
+    if plat_info.arch in ["aarch64", "arm64"]:
+        arch_str = "aarch64"
+    else:
+        arch_str = "x86_64"
+        
+    binary_name = f"convex-local-backend-{arch_str}-{os_str}.zip"
+        
+    url = f"{base_url}/{binary_name}"
+    logger.debug(f"Generated Convex URL: {url}")
+    return url
+
+def download_convex(dest_path: str) -> None:
+    plat_info = get_platform_info()
+    url = get_convex_url(plat_info)
+    
+    logger.info(f"Starting download of Convex from {url}")
+    
+    os.makedirs(os.path.dirname(os.path.abspath(dest_path)), exist_ok=True)
+    
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+    
+    total_size = int(response.headers.get("content-length", 0))
+    zip_path = f"{dest_path}.zip"
+    
+    with Progress(
+        SpinnerColumn(),
+        "[progress.description]{task.description}",
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+    ) as progress:
+        task = progress.add_task("[cyan]Downloading Convex...", total=total_size)
+        with open(zip_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                progress.update(task, advance=len(chunk))
+                
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(os.path.dirname(dest_path))
+        
+    os.remove(zip_path)
+                
+    if plat_info.os_name != "windows":
+        logger.debug(f"Setting executable permissions on {dest_path}")
+        st = os.stat(dest_path)
+        os.chmod(dest_path, st.st_mode | stat.S_IEXEC)

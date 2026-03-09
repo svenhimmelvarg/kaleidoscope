@@ -45,10 +45,8 @@ run_convex_backend() {
     mkdir -p "${instance_dir}"
     mkdir -p "${storage_dir}"
 
-    # Find the latest convex-local-backend binary
-    local binaries_dir="${HOME}/.cache/convex/binaries"
-    local latest_binary_dir=$(ls -d "${binaries_dir}"/precompiled-* 2>/dev/null | sort | tail -n 1)
-    local backend_bin="${latest_binary_dir}/convex-local-backend"
+    local backend_bin="$(dirname "$0")/convex-local-backend"
+    
 
     if [ ! -f "$backend_bin" ]; then
         # Fallback to checking PATH
