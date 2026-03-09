@@ -106,9 +106,11 @@ run_convex_backend() {
     fi
 
     # Default OP_ENV_FILE if not set
+    set +eu
     if [ -z "${OP_ENV_FILE:-}" ]; then
         OP_ENV_FILE=".env.local"
     fi
+    set -eu 
 
     # We do NOT pass --env-file here because that forces Convex to look for connection info in the file
     # instead of using our exported CONVEX_SELF_HOSTED_* variables.
