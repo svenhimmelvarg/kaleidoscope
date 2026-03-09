@@ -29,7 +29,7 @@ run_convex_backend() {
     
     # Generate a valid 32-byte hex key from the provided secret (using sha256)
     # This ensures "password" becomes a valid hex string that the backend accepts
-    local hex_secret=$(echo -n "${secret}" | sha256sum | awk '{print $1}')
+    local hex_secret=$(python -c "import hashlib, sys; print(hashlib.sha256(sys.argv[1].encode('utf-8')).hexdigest())" "${secret}")
 
     local instance_dir="${data_base_dir}/${instance_name}"
     local db_path="${instance_dir}/db.sqlite3"
