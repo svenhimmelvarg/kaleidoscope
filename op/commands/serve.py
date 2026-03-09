@@ -268,16 +268,26 @@ def search():
         display_error("No .env file found. Run 'op init' first.")
         raise SystemExit(1)
 
-    meilisearch_path = "./bin/meilisearch"
-
-    if not os.path.exists(meilisearch_path):
-        display_info(f"MeiliSearch binary not found at {meilisearch_path}, downloading...")
+    if sys.platform == "darwin":
+        display_info("macOS detected. Using Homebrew to install MeiliSearch...")
         try:
-            download_meilisearch(meilisearch_path)
-        except Exception as e:
-            logger.error(f"Failed to download MeiliSearch: {e}")
-            display_error(f"Failed to download MeiliSearch: {e}")
+            subprocess.run(["brew", "install", "meilisearch"], check=True)
+            meilisearch_path = subprocess.check_output(["which", "meilisearch"]).decode().strip()
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install or find MeiliSearch via Homebrew: {e}")
+            display_error(f"Failed to install or find MeiliSearch via Homebrew: {e}")
             raise SystemExit(1)
+    else:
+        meilisearch_path = "./bin/meilisearch"
+
+        if not os.path.exists(meilisearch_path):
+            display_info(f"MeiliSearch binary not found at {meilisearch_path}, downloading...")
+            try:
+                download_meilisearch(meilisearch_path)
+            except Exception as e:
+                logger.error(f"Failed to download MeiliSearch: {e}")
+                display_error(f"Failed to download MeiliSearch: {e}")
+                raise SystemExit(1)
 
     display_info(f"Starting MeiliSearch at {config.meilisearch_host}")
 
