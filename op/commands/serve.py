@@ -5,11 +5,10 @@ import click
 import logging
 from urllib.parse import urlparse
 
-from dotenv import dotenv_values
 
-from op.config import ensure_config, get_config_value, load_config, set_config_value
+from op.config import ensure_config, get_config_value, load_config
 from op.utils.banner import display_banner, display_error, display_info
-from op.install import download_meilisearch
+from op.install import download_meilisearch, download_convex
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,7 @@ def serve():
 
 
 @serve.command()
-@click.option(
-    "--port", "-p", type=int, help="Port to run the server on (overrides config)"
-)
+@click.option("--port", "-p", type=int, help="Port to run the server on (overrides config)")
 def kaleidescope(port):
     logger.info("Starting kaleidescope server")
     config = ensure_config()
@@ -67,9 +64,7 @@ def indexer(path):
     logger.info("Starting indexer")
     config = ensure_config()
 
-    comfyui_path = (
-        path or config.comfyui_output_path or get_config_value("COMFYUI_OUTPUT_PATH")
-    )
+    comfyui_path = path or config.comfyui_output_path or get_config_value("COMFYUI_OUTPUT_PATH")
 
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
@@ -111,9 +106,7 @@ def indexer_legacy(path):
     logger.info("Starting legacy indexer")
     config = ensure_config()
 
-    comfyui_path = (
-        path or config.comfyui_output_path or get_config_value("COMFYUI_OUTPUT_PATH")
-    )
+    comfyui_path = path or config.comfyui_output_path or get_config_value("COMFYUI_OUTPUT_PATH")
 
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
@@ -179,9 +172,7 @@ def kaleidescope_ui():
     host = parsed_url.hostname or "127.0.0.1"
 
     env = os.environ.copy()
-    env["VITE_KALEIDESCOPE_API_URL"] = (
-        config.kaleidescope_api_url or "http://127.0.0.1:8000"
-    )
+    env["VITE_KALEIDESCOPE_API_URL"] = config.kaleidescope_api_url or "http://127.0.0.1:8000"
     env["VITE_MEILISEARCH_HOST"] = config.meilisearch_host or "127.0.0.1:7700"
     env["VITE_CONVEX_URL"] = config.convex_url or "http://127.0.0.1:3214"
 
@@ -229,6 +220,19 @@ def convex():
     parsed_url = urlparse(config.convex_url)
     port = parsed_url.port or 3214
 
+    convex_bin_path = "./bin/convex-local-backend"
+    if sys.platform == "win32":
+        convex_bin_path += ".exe"
+
+    if not os.path.exists(convex_bin_path):
+        display_info(f"Convex binary not found at {convex_bin_path}, downloading...")
+        try:
+            download_convex(convex_bin_path)
+        except Exception as e:
+            logger.error(f"Failed to download Convex: {e}")
+            display_error(f"Failed to download Convex: {e}")
+            raise SystemExit(1)
+
     display_banner(config, "Convex Server")
     display_info(f"Starting Convex at {config.convex_url}")
     display_info(f"Instance Name: {config.convex_instance_name}")
@@ -264,18 +268,26 @@ def search():
         display_error("No .env file found. Run 'op init' first.")
         raise SystemExit(1)
 
-    meilisearch_path = "./bin/meilisearch"
-
-    if not os.path.exists(meilisearch_path):
-        display_info(
-            f"MeiliSearch binary not found at {meilisearch_path}, downloading..."
-        )
+    if sys.platform == "darwin":
+        display_info("macOS detected. Using Homebrew to install MeiliSearch...")
         try:
-            download_meilisearch(meilisearch_path)
-        except Exception as e:
-            logger.error(f"Failed to download MeiliSearch: {e}")
-            display_error(f"Failed to download MeiliSearch: {e}")
+            subprocess.run(["brew", "install", "meilisearch"], check=True)
+            meilisearch_path = subprocess.check_output(["which", "meilisearch"]).decode().strip()
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install or find MeiliSearch via Homebrew: {e}")
+            display_error(f"Failed to install or find MeiliSearch via Homebrew: {e}")
             raise SystemExit(1)
+    else:
+        meilisearch_path = "./bin/meilisearch"
+
+        if not os.path.exists(meilisearch_path):
+            display_info(f"MeiliSearch binary not found at {meilisearch_path}, downloading...")
+            try:
+                download_meilisearch(meilisearch_path)
+            except Exception as e:
+                logger.error(f"Failed to download MeiliSearch: {e}")
+                display_error(f"Failed to download MeiliSearch: {e}")
+                raise SystemExit(1)
 
     display_info(f"Starting MeiliSearch at {config.meilisearch_host}")
 

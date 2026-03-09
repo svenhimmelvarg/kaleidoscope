@@ -64,30 +64,11 @@ Before running the services, you must initialize and configure the `op` environm
 
 ## Running the Application
 
-Once everything is configured, you can use the `serve` command to run different modules. 
+Once everything is configured, you can start the entire stack using `honcho` and the `Procfile`:
 
-To run the legacy indexer:
 ```bash
-op serve indexer.legacy
+op start
 ```
 
-To run the search module:
-```bash
-op serve search
-```
 
-## CLI Usage
 
-The `op` CLI provides several other commands. You can explore them using the `--help` flag:
-```bash
-op --help
-```
-
-Available commands include:
-- `init`: Initialize the environment configuration.
-- `config`: Group of commands to view, set, or validate configuration variables.
-- `serve`: Run a service module.
-- `indexer`: Run indexing jobs.
-- `ingest`: Ingest data into the system.
-- `start` / `stop`: Manage background services.
-- `supervisor`: Run the supervisor process.

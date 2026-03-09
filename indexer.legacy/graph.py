@@ -94,9 +94,7 @@ args = create_arguments()
 
 # Calculate effective configuration values
 effective_data_dir = args.data_dir or config.get("DATA_DIR", "./data")
-effective_index_name = args.indexer_name or config.get(
-    "INDEX_NAME", "comfy_outputs_v110"
-)
+effective_index_name = args.indexer_name or config.get("INDEX_NAME", "comfy_outputs_v110")
 
 # Set up data directory in punter and create directory structure
 punter.set_data_dir(effective_data_dir)
@@ -141,9 +139,7 @@ def fn_write_workflow_json(data, ctx):
             ordered_data["nodes"] = ordered_nodes
 
         json_data = ordered_data
-        data_str = json.dumps(
-            ordered_data, indent=2
-        )  # Pretty print JSON for better readability
+        data_str = json.dumps(ordered_data, indent=2)  # Pretty print JSON for better readability
     else:
         data_str = str(data)
         try:
@@ -339,7 +335,7 @@ def fn_create_meilisearch_doc(data, ctx):
             "output_fn": None,
         },
         {
-            "ref": "\w*Lora\w*.inputs.\w*lora\w*",
+            "ref": r"\w*Lora\w*.inputs.\w*lora\w*",
             "type": list,
             "output_field": "loras",
             "output_fn": None,
@@ -381,7 +377,7 @@ def fn_create_meilisearch_doc(data, ctx):
             "output_fn": None,
         },
         {
-            "ref": "UnetLoader\w*.inputs.\w*(model|unet)\w*",
+            "ref": r"UnetLoader\w*.inputs.\w*(model|unet)\w*",
             "type": list,
             "output_field": "models",
             "output_fn": None,
@@ -706,12 +702,8 @@ print(f"[THUMBNAIL] Thumbnail cache directory ready: {os.path.abspath(THUMBNAIL_
 def sink(outputs):
     # print(json.dumps(output))
     # Meilisearch configuration
-    raw_url = (
-        args.indexer_host or config.get("VITE_MEILISEARCH_HOST") or "127.0.0.1:7700"
-    )
-    url = (
-        raw_url if raw_url.startswith(("http://", "https://")) else "http://" + raw_url
-    )
+    raw_url = args.indexer_host or config.get("VITE_MEILISEARCH_HOST") or "127.0.0.1:7700"
+    url = raw_url if raw_url.startswith(("http://", "https://")) else "http://" + raw_url
 
     meillisearch_initalise(url, effective_index_name)
     meillisearch_filter_fields(
@@ -833,9 +825,7 @@ def sink(outputs):
                 )
 
             os.makedirs(dead_letter_config.folder, exist_ok=True)
-            open(f"{dead_letter_config.folder}/errors.json", "w").write(
-                json.dumps(e.errors())
-            )
+            open(f"{dead_letter_config.folder}/errors.json", "w").write(json.dumps(e.errors()))
             # print(d1['id'],"    ", json.dumps(e.errors()))
 
             dead_count = dead_count + 1

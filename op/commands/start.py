@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 @click.command()
-def start():
+@click.argument("services", nargs=-1)
+def start(services):
     """Start all op services using honcho."""
     ensure_config()
 
@@ -21,7 +22,8 @@ def start():
 
     try:
         # Run honcho start to manage processes defined in Procfile
-        subprocess.run(["honcho", "start"], check=True)
+        cmd = ["honcho", "start"] + list(services)
+        subprocess.run(cmd, check=True)
     except KeyboardInterrupt:
         click.echo("\nStopping services...")
     except subprocess.CalledProcessError as e:
