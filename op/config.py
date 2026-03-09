@@ -194,6 +194,7 @@ def ensure_config() -> Config:
         print("Error: Invalid configuration:")
         for error in errors:
             print(f"  - {error}")
+        print(", run  op config validate")
         raise SystemExit(1)
 
     logger.info("Configuration validated successfully")

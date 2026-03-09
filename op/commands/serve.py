@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 @click.group()
 def serve():
-    pass
+    config = load_config()
+    data_dir = config.data_dir if config and config.data_dir else "./data"
+    os.makedirs(data_dir, exist_ok=True)
 
 
 @serve.command()
