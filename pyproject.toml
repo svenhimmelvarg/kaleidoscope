@@ -33,7 +33,7 @@ dependencies = [
     "cryptography>=41.0.0",
     "protobuf>=4.21.0",
     "Pillow>=10.0.0",
-    "inotify-simple>=1.2.1",
+    "watchdog>=4.0.0",
     "meilisearch>=0.20.0",
 ]
 
