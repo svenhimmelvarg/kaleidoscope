@@ -183,6 +183,22 @@ def kaleidescope_ui():
     display_info(f"Proxying API to: {config.kaleidescope_api_url}")
     display_info(f"Meilisearch: {env['VITE_MEILISEARCH_HOST']}")
 
+    display_info("Checking NPM dependencies...")
+    try:
+        check_deps = subprocess.run(["npm", "ls"], capture_output=True)
+        if check_deps.returncode != 0:
+            display_info("Missing dependencies detected. Running 'npm install'...")
+            subprocess.run(["npm", "install"], check=True)
+            display_info("Dependencies installed successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to install NPM dependencies: {e}")
+        display_error("Failed to install NPM dependencies. Please run 'npm install' manually.")
+        raise SystemExit(1)
+    except FileNotFoundError:
+        logger.error("npm command not found.")
+        display_error("npm command not found. Please ensure Node.js and npm are installed.")
+        raise SystemExit(1)
+
     try:
         subprocess.run(
             [
