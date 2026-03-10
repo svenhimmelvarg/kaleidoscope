@@ -1,11 +1,12 @@
 import os
 import glob
-import json
 import logging
 from PIL import Image
 from PIL.ExifTags import TAGS
-from inotify_simple import INotify, flags
-import datetime
+import queue
+from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
+from watchdog.events import FileSystemEventHandler
 import time
 from .utils import hash_file, hash_json_data
 
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 def walk(path, limit=None):
     if limit is None:
         limit = -1
-    files = []
 
     # Check if path contains glob patterns
     if "*" in path or "?" in path or "[" in path:
@@ -41,51 +41,10 @@ def walk(path, limit=None):
                         paths.append(f)
                     if os.path.isfile(f):
                         yield f
-            except PermissionError as e:
+            except PermissionError:
                 logger.warning(f"Permission denied: {path}")
         elif os.path.isfile(path):
             yield path
-
-
-def get_folders_updated_last_week(path):
-    """Get folders that have been updated in the last 7 days."""
-    today = datetime.date.today()
-    week_ago = today - datetime.timedelta(days=7)
-    folders = []
-    try:
-        for item in os.listdir(path):
-            item_path = os.path.join(path, item)
-            if os.path.isdir(item_path):
-                creation_time = datetime.date.fromtimestamp(os.path.getctime(item_path))
-                if creation_time >= week_ago:
-                    folders.append(item_path)
-    except OSError:
-        pass
-    return folders
-
-
-def get_all_child_folders(path):
-    paths = []
-    if "*" in path or "?" in path or "[" in path:
-        # Handle glob pattern
-        glob_paths = glob.glob(path, recursive=True)
-        paths = glob_paths
-    else:
-        # Handle single path as before
-        paths = [path]
-    folders = []
-    folders.extend(paths)
-
-    for p in paths:
-        try:
-            if os.path.isdir(p):
-                for item in os.listdir(p):
-                    item_path = os.path.join(p, item)
-                    if os.path.isdir(item_path):
-                        folders.append(item_path)
-        except OSError:
-            pass
-    return folders
 
 
 def read_png_metadata(file_path):
@@ -148,78 +107,82 @@ def read_png_metadata(file_path):
     }
 
 
+class PngHandler(FileSystemEventHandler):
+    def __init__(self, file_queue):
+        self.file_queue = file_queue
+
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.lower().endswith(".png"):
+            self.file_queue.put(event.src_path)
+
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.lower().endswith(".png"):
+            self.file_queue.put(event.src_path)
+
+    def on_moved(self, event):
+        if not event.is_directory and event.dest_path.lower().endswith(".png"):
+            self.file_queue.put(event.dest_path)
+
+
 def watch_pngs(watch_path, limit=100, skip_count=-1):
     count = 0
-    inotify = INotify()
-    watchers = {}
-
-    if "*" in watch_path or "?" in watch_path or "[" in watch_path:
-        # Handle glob pattern
-        glob_paths = glob.glob(watch_path, recursive=True)
+    path = watch_path
+    if "*" in path or "?" in path or "[" in path:
+        glob_paths = glob.glob(path, recursive=True)
         paths = glob_paths
     else:
-        # Handle single path
-        paths = [watch_path]
+        paths = [path]
 
-    folders_to_add = []
+    file_queue = queue.Queue()
+    event_handler = PngHandler(file_queue)
 
-    for path in paths:
-        try:
-            wd = inotify.add_watch(path, flags.CREATE | flags.MOVED_TO)
-            watchers[wd] = path
-            folders_to_add.extend(get_all_child_folders(path))
-        except OSError as e:
-            logger.error(f"Failed to watch {path}: {e}")
+    try:
+        observer = Observer()
+    except Exception:
+        observer = PollingObserver()
 
-    while len(folders_to_add) > 0:
-        path = folders_to_add.pop()
-        try:
-            wd = inotify.add_watch(path, flags.CREATE | flags.MOVED_TO)
-            watchers[wd] = path
-            # logger.info(f" * is folder - adding to watch : {path}")
-            folders_to_add.extend(get_folders_updated_last_week(path))
-        except OSError:
-            pass  # Ignore permission errors etc
+    watchers = 0
+    for p in paths:
+        if os.path.isdir(p):
+            observer.schedule(event_handler, path=p, recursive=True)
+            watchers += 1
+            # logger.info(f" * is folder - adding to watch : {p}")
+        else:
+            dir_path = os.path.dirname(p)
+            if dir_path and os.path.isdir(dir_path):
+                observer.schedule(event_handler, path=dir_path, recursive=False)
+                watchers += 1
+                # logger.info(f" * is file dir - adding to watch : {dir_path}")
 
-    logger.info(f"Watching {len(watchers)} folders")
+    logger.info(f"Watching {watchers} folders")
+    observer.start()
 
-    while True:
-        if limit is not None and count >= limit:
-            break
+    processed_files = set()
 
-        events = inotify.read()
-        files = []
+    try:
+        while True:
+            if limit is not None and count >= limit:
+                break
 
-        for e in events:
-            if e.wd not in watchers:
-                continue
+            try:
+                # We use a non-blocking get to not hang forever if empty,
+                # but wait 1s so we don't spin CPU too hard
+                f_name = file_queue.get(timeout=1.0)
 
-            watch_path = watchers[e.wd]
-            f_name = os.path.join(watch_path, e.name)
-
-            if os.path.isdir(f_name):
-                # logger.info(f" * is folder - adding to watch : {f_name}")
-                try:
-                    wd = inotify.add_watch(f_name, flags.CREATE | flags.MOVED_TO)
-                    watchers[wd] = f_name
-                except OSError:
-                    pass
-                continue
-
-            if e.name.lower().endswith(".png"):
-                files.append(f_name)
-
-        if files:
-            # logger.info(f"Yields {len(files)} new files")
-            time.sleep(1)  # Wait for file write to complete
-
-            for f in files:
-                try:
-                    print(f"DEBUG: Watcher Discovered: {os.path.abspath(f)}")
-                    yield (read_png_metadata(f), f)
-                    count += 1
-                except Exception as e:
-                    logger.error(f"Error processing {f}: {e}")
+                if f_name not in processed_files:
+                    time.sleep(1)  # Wait for file write to complete
+                    try:
+                        print(f"DEBUG: Watcher Discovered: {os.path.abspath(f_name)}")
+                        yield (read_png_metadata(f_name), f_name)
+                        count += 1
+                        processed_files.add(f_name)
+                    except Exception as e:
+                        logger.error(f"Error processing {f_name}: {e}")
+            except queue.Empty:
+                pass
+    finally:
+        observer.stop()
+        observer.join()
 
 
 def get_all_pngs(start_path, limit=None, skip_count=-1, watch=False):
