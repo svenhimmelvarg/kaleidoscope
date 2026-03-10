@@ -48,8 +48,6 @@ Before running the services, you must initialize and configure the `op` environm
    You need to define the paths to your local instances and repositories. Replace `.` with your actual absolute or relative paths as needed:
    ```bash
    op config set COMFYUI_INSTANCE_BASE_PATH .
-   op config set COMFYUI_OUTPUT_PATH .
-   op config set KALEIDESCOPE_REPO_PATH .
    ```
 
 3. **Verify your configuration:**

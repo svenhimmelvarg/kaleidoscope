@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG = {
     "KALEIDESCOPE_API_URL": "http://127.0.0.1:8000",
     "KALEIDESCOPE_UI_URL": "http://127.0.0.1:5173",
-    "KALEIDESCOPE_REPO_PATH": None,
     "COMFYUI_OUTPUT_PATH": None,
     "COMFYUI_INSTANCE_BASE_PATH": None,
     "MEILISEARCH_HOST": "127.0.0.1:7700",
@@ -30,7 +29,6 @@ DEFAULT_CONFIG = {
 class Config:
     kaleidescope_api_url: str
     kaleidescope_ui_url: str
-    kaleidescope_repo_path: str
     comfyui_output_path: str
     comfyui_instance_base_path: str
     meilisearch_host: str
@@ -58,12 +56,10 @@ def init_env() -> Path:
 KALEIDESCOPE_API_URL=http://127.0.0.1:8000
 KALEIDESCOPE_UI_URL=http://127.0.0.1:5173
 
-# Kaleidoscope repository path
-KALEIDESCOPE_REPO_PATH=
-
 # ComfyUI configuration
-COMFYUI_OUTPUT_PATH=
 COMFYUI_INSTANCE_BASE_PATH=
+# Optional: overrides default output path ($COMFYUI_INSTANCE_BASE_PATH/output)
+# COMFYUI_OUTPUT_PATH=
 
 # Release folders (for indexer)
 RELEASE_FOLDER=release
@@ -124,9 +120,13 @@ def load_config() -> Optional[Config]:
     return Config(
         kaleidescope_api_url=get_value("KALEIDESCOPE_API_URL"),
         kaleidescope_ui_url=get_value("KALEIDESCOPE_UI_URL"),
-        kaleidescope_repo_path=get_value("KALEIDESCOPE_REPO_PATH"),
-        comfyui_output_path=get_value("COMFYUI_OUTPUT_PATH"),
         comfyui_instance_base_path=get_value("COMFYUI_INSTANCE_BASE_PATH"),
+        comfyui_output_path=get_value("COMFYUI_OUTPUT_PATH")
+        or (
+            str(Path(get_value("COMFYUI_INSTANCE_BASE_PATH")) / "output")
+            if get_value("COMFYUI_INSTANCE_BASE_PATH")
+            else ""
+        ),
         meilisearch_host=get_value("MEILISEARCH_HOST"),
         index_name=get_value("INDEX_NAME"),
         convex_url=get_value("CONVEX_URL"),
@@ -149,9 +149,6 @@ def validate_config(config: Optional[Config]) -> tuple[bool, list[str]]:
 
     if not config.kaleidescope_ui_url:
         errors.append("KALEIDESCOPE_UI_URL is not set")
-
-    if not config.kaleidescope_repo_path:
-        errors.append("KALEIDESCOPE_REPO_PATH is not set")
 
     if not config.comfyui_instance_base_path:
         errors.append("COMFYUI_INSTANCE_BASE_PATH is not set")

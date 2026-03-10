@@ -2,8 +2,8 @@ import os
 import click
 import logging
 
-from op.config import ensure_config, set_config_value, get_config_value
-from op.utils.banner import display_success, display_error, display_info
+from op.config import ensure_config, set_config_value
+from op.utils.banner import display_success, display_info
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def add(path):
 
     logger.info(f"Created release folders: {release_folder}, {prerelease_folder}")
 
-    set_config_value("COMFYUI_OUTPUT_PATH", path)
-    display_success(f"Added ComfyUI output path: {path}")
+    set_config_value("COMFYUI_INSTANCE_BASE_PATH", path)
+    display_success(f"Added ComfyUI instance base path: {path}")
     display_info(f"Release folder: {release_folder}")
     display_info(f"Prerelease folder: {prerelease_folder}")

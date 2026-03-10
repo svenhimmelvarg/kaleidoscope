@@ -33,6 +33,8 @@ def kaleidescope(port):
     port = port or parsed_url.port or 8000
     host = parsed_url.hostname or "127.0.0.1"
 
+    repo_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     try:
         subprocess.run(
             [
@@ -46,7 +48,7 @@ def kaleidescope(port):
                 "--port",
                 str(port),
             ],
-            cwd=config.kaleidescope_repo_path,
+            cwd=repo_path,
             check=True,
         )
     except subprocess.CalledProcessError as e:
@@ -69,7 +71,7 @@ def indexer(path):
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
         print()
-        print("type:  op config set COMFYUI_OUTPUT_PATH /path/to/output")
+        print("type:  op config set COMFYUI_INSTANCE_BASE_PATH /path/to/instance")
         raise SystemExit(1)
 
     watch_path = os.path.join(comfyui_path, config.release_folder)
@@ -111,7 +113,7 @@ def indexer_legacy(path):
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
         print()
-        print("type:  op config set COMFYUI_OUTPUT_PATH /path/to/output")
+        print("type:  op config set COMFYUI_INSTANCE_BASE_PATH /path/to/instance")
         raise SystemExit(1)
 
     # Resolve to absolute path because we change cwd below
