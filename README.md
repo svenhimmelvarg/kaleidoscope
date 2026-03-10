@@ -29,7 +29,7 @@ source .venv/bin/activate
 op start
 ```
 
-Connect to [](http://localhost:5173) 
+Connect to [Kaleidescope UI](http://localhost:5173) 
 
 ## Tutorials 
 
