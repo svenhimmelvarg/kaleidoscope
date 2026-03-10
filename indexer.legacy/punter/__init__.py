@@ -216,6 +216,10 @@ class PngHandler(FileSystemEventHandler):
         if not event.is_directory and event.src_path.lower().endswith(".png"):
             self.file_queue.put(event.src_path)
 
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.lower().endswith(".png"):
+            self.file_queue.put(event.src_path)
+
     def on_moved(self, event):
         if not event.is_directory and event.dest_path.lower().endswith(".png"):
             self.file_queue.put(event.dest_path)
@@ -256,26 +260,69 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
     observer.start()
     print("Watch List started.")
 
+    pending_files = {} # path -> first_seen_time
+    processed_files = set()
+
     try:
         while count < limit:
+            # 1. Process anything in the queue
             try:
-                # Wait for a file to be added to the queue
-                f_name = file_queue.get(timeout=1.0)
-
-                # Small delay to ensure file is fully written before reading
-                time.sleep(1)
-
-                try:
-                    yield (read_png_metadata(f_name), f_name)
-                    count += 1
-                except Exception as e:
-                    print(f"Error processing {f_name}: {e}")
+                # We use a non-blocking get to not hang forever if empty, 
+                # but wait 0.5s so we don't spin CPU too hard
+                f_name = file_queue.get(timeout=0.5)
+                
+                if f_name not in processed_files:
+                    if f_name not in pending_files:
+                        pending_files[f_name] = time.time()
+                        print(f"[DEBUG] '{f_name}' added to pending_files (first seen).")
+                    
+                    try:
+                        metadata_result = read_png_metadata(f_name)
+                        data = metadata_result.get("data", {})
+                        
+                        # Fast path: Check if metadata injected by kaleidoscope exists
+                        has_meta = "png_parent_id" in data or "png_elapsed_ms" in data or "info_parent_id" in data or "info_elapsed_ms" in data
+                        
+                        if has_meta:
+                            print(f"[DEBUG] '{f_name}' hit fast-path! Metadata found. Yielding immediately.")
+                            yield (metadata_result, f_name)
+                            count += 1
+                            processed_files.add(f_name)
+                            if f_name in pending_files:
+                                del pending_files[f_name]
+                    except Exception as e:
+                        print(f"Error reading metadata for {f_name} on fast-path: {e}")
             except queue.Empty:
                 pass
+
+            # 2. Flush pending files older than 10 seconds
+            current_time = time.time()
+            to_flush = []
+            for f_name, first_seen in pending_files.items():
+                if current_time - first_seen >= 10.0:
+                    to_flush.append(f_name)
+                    print(f"[DEBUG] '{f_name}' reached 10s timeout. Adding to flush queue.")
+                    
+            for f_name in to_flush:
+                if f_name not in processed_files:
+                    try:
+                        metadata_result = read_png_metadata(f_name)
+                        data = metadata_result.get("data", {})
+                        has_meta = "png_parent_id" in data or "png_elapsed_ms" in data or "info_parent_id" in data or "info_elapsed_ms" in data
+                        
+                        meta_status = "WITH kaleidoscope metadata" if has_meta else "WITHOUT kaleidoscope metadata"
+                        print(f"[DEBUG] '{f_name}' being processed by slow-path flush. Yielding {meta_status}.")
+                        
+                        yield (metadata_result, f_name)
+                        count += 1
+                        processed_files.add(f_name)
+                    except Exception as e:
+                        print(f"Error processing {f_name} on slow-path flush: {e}")
+                del pending_files[f_name]
+
     finally:
         observer.stop()
         observer.join()
-
 
 def get_pngs(start_path, limit=None, skip_count=-1, watch=False):
     if watch:
