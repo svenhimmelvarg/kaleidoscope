@@ -38,5 +38,14 @@ Connect to the [Kaleidoscope UI](http://localhost:5173).
 
 ## Tutorials
 
-- [Getting Started](./docs/tutorials/GettingStarted.md) using default workflow *(coming soon)*
+**Text To Image Examples**
+- [Getting Started](./docs/tutorials/GettingStarted.md) using default workflow 
 - Publish workflows to Hugging Face *(coming soon)*
+
+
+**Workflows that use image inputs (coming soon)** 
+
+
+
+ 
+
