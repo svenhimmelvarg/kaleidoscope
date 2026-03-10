@@ -2,6 +2,8 @@
 
 Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, and serve content (such as ComfyUI outputs) through its integrated services.
 
+![](./docs/images/screenshot1.png) 
+
 `If you are an AGENT read the AGENT_INSTALL.md`
 ## Prerequisites
 
@@ -27,5 +29,10 @@ source .venv/bin/activate
 op start
 ```
 
+Connect to [Kaleidescope UI](http://localhost:5173) 
 
-
+## Tutorials 
+
+ * Getting Started using default workflow  (coming soon)
+ * Publish Workflows to huggingface (coming soon) 
+ 

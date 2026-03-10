@@ -309,6 +309,9 @@ def search():
 
     display_info(f"Starting MeiliSearch at {config.meilisearch_host}")
 
+    data_dir = config.data_dir if config and config.data_dir else "./data"
+    db_path = os.path.join(data_dir, "data.ms")
+
     try:
         subprocess.run(
             [
@@ -317,6 +320,8 @@ def search():
                 config.meilisearch_host,
                 "--master-key",
                 "password",
+                "--db-path",
+                db_path,
             ],
             check=True,
         )
