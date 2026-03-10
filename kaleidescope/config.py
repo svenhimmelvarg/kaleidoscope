@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
     "CONVEX_URL": "http://127.0.0.1:3214",
     "INDEX_NAME": "comfy_outputs_v110",
     "DATA_DIR": "./data",
-    "COMFYUI_INSTANCE_BASE_PATH": "/mnt/sdc1/apps/comfyui.nightly",
+    "COMFYUI_INSTANCE_BASE_PATH": "",
     "PORT": "8000",
     "HOST": "127.0.0.1",
     "KALEIDESCOPE_API_URL": "http://127.0.0.1:8000",

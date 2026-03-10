@@ -33,6 +33,8 @@ def kaleidescope(port):
     port = port or parsed_url.port or 8000
     host = parsed_url.hostname or "127.0.0.1"
 
+    repo_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     try:
         subprocess.run(
             [
@@ -46,7 +48,7 @@ def kaleidescope(port):
                 "--port",
                 str(port),
             ],
-            cwd=config.kaleidescope_repo_path,
+            cwd=repo_path,
             check=True,
         )
     except subprocess.CalledProcessError as e:
@@ -69,7 +71,7 @@ def indexer(path):
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
         print()
-        print("type:  op config set COMFYUI_OUTPUT_PATH /path/to/output")
+        print("type:  op config set COMFYUI_INSTANCE_BASE_PATH /path/to/instance")
         raise SystemExit(1)
 
     watch_path = os.path.join(comfyui_path, config.release_folder)
@@ -111,7 +113,7 @@ def indexer_legacy(path):
     if not comfyui_path:
         print("config.error - No comfyui instance configured")
         print()
-        print("type:  op config set COMFYUI_OUTPUT_PATH /path/to/output")
+        print("type:  op config set COMFYUI_INSTANCE_BASE_PATH /path/to/instance")
         raise SystemExit(1)
 
     # Resolve to absolute path because we change cwd below
@@ -180,6 +182,22 @@ def kaleidescope_ui():
     display_info(f"Starting UI server at http://{host}:{port}")
     display_info(f"Proxying API to: {config.kaleidescope_api_url}")
     display_info(f"Meilisearch: {env['VITE_MEILISEARCH_HOST']}")
+
+    display_info("Checking NPM dependencies...")
+    try:
+        check_deps = subprocess.run(["npm", "ls"], capture_output=True)
+        if check_deps.returncode != 0:
+            display_info("Missing dependencies detected. Running 'npm install'...")
+            subprocess.run(["npm", "install"], check=True)
+            display_info("Dependencies installed successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to install NPM dependencies: {e}")
+        display_error("Failed to install NPM dependencies. Please run 'npm install' manually.")
+        raise SystemExit(1)
+    except FileNotFoundError:
+        logger.error("npm command not found.")
+        display_error("npm command not found. Please ensure Node.js and npm are installed.")
+        raise SystemExit(1)
 
     try:
         subprocess.run(
