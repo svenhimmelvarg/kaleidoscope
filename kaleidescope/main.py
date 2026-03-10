@@ -58,14 +58,43 @@ def create_app() -> FastAPI:
         app.mount("/images/thumbnails", StaticFiles(directory=local_thumbnails), name="thumbnails")
         logger.info(f"Serving local thumbnails from {local_thumbnails}")
 
-    # Mount images from ComfyUI output parent directory
-    # The UI expects /images to map to the parent of the instance (e.g., /mnt/sdc1/apps/)
-    # so that /images/comfyui.bleedingedge/output/... resolves correctly.
+    # Serve images dynamically to handle missing source names gracefully
     if config.comfyui_instance_base_path:
         images_dir = Path(config.comfyui_instance_base_path).parent
         if images_dir.exists():
-            app.mount("/images", StaticFiles(directory=images_dir), name="images")
-            logger.info(f"Serving images from {images_dir}")
+            default_instance_name = Path(config.comfyui_instance_base_path).name
+
+            @app.get("/images/{file_path:path}")
+            async def serve_images(file_path: str):
+                cleaned_path = file_path.lstrip("/")
+                parts = cleaned_path.split("/")
+
+                # Fallback to default instance if a standard folder is accessed directly
+                if parts and parts[0] in ["input", "output", "release", "prerelease"]:
+                    cleaned_path = f"{default_instance_name}/{cleaned_path}"
+
+                full_path = images_dir / cleaned_path
+
+                # Security check to prevent path traversal
+                try:
+                    resolved_full = full_path.resolve()
+                    resolved_base = images_dir.resolve()
+                    resolved_full.relative_to(resolved_base)
+                except ValueError:
+                    from fastapi import HTTPException
+
+                    raise HTTPException(status_code=403, detail="Access denied")
+
+                if resolved_full.exists() and resolved_full.is_file():
+                    return FileResponse(resolved_full)
+
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=404, detail="Image not found")
+
+            logger.info(
+                f"Serving images dynamically from {images_dir} (default instance: {default_instance_name})"
+            )
         else:
             logger.warning(f"Parent of ComfyUI instance path {images_dir} does not exist")
 
@@ -74,6 +103,10 @@ def create_app() -> FastAPI:
 
     def inject_env_config(html_content: str) -> str:
         """Inject environment variables as window.ENV in index.html"""
+        base_path = config.comfyui_instance_base_path
+        if not base_path:
+            raise ValueError("COMFYUI_INSTANCE_BASE_PATH configuration is missing.")
+
         config_script = f"""<script>
     window.ENV = {{
         "VITE_CONVEX_URL": "{config.convex_url}",
