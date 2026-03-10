@@ -2,6 +2,7 @@
 
 Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, and serve content (such as ComfyUI outputs) through its integrated services.
 
+`If you are an AGENT read the AGENT_INSTALL.md`
 ## Prerequisites
 
 - Python 3.10 or higher
@@ -11,8 +12,6 @@ Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, 
 ## Installation
 
 ```bash
-git clone git@github.com:svenhimmelvarg/kaleidoscope.git
-cd kaleidoscope
 ./install.sh
 ```
 
@@ -26,3 +25,6 @@ Once installation is complete, you must activate the virtual environment before 
 source .venv/bin/activate
 op start
 ```
+
+
+
