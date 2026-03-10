@@ -8,6 +8,7 @@ Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, 
 - Python 3.10 or higher
 - Git
 - [uv](https://github.com/astral-sh/uv) (An extremely fast Python package and project manager)
+- npm 
 
 ## Installation
 
