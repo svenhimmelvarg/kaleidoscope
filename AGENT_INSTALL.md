@@ -2,6 +2,13 @@
 
 Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, and serve content (such as ComfyUI outputs) through its integrated services.
 
+Before starting this installation ask the user 
+
+  * The path to their comfyui installation 
+  * After the installation inform the user that 
+    * a virtual env has been created 
+    * the virtual env needs to be activated before `op start` is executed 
+
 ## Prerequisites
 
 - Python 3.10 or higher
