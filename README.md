@@ -1,7 +1,8 @@
 # Kaleidoscope
 
-***Capture, Search, Reuse your workflows***
+***Capture, Search, Reuse your workflows.***
 
+Kaleidoscope is a tool for image creators — index your generations, search your history, and build workflows you can run again.
 
 
 ![](./docs/images/screenshot1.png) 
