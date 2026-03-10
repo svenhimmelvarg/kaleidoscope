@@ -1,6 +1,8 @@
 # Kaleidoscope
 
-Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, and serve content (such as ComfyUI outputs) through its integrated services.
+***Capture, Search, Reuse your workflows***
+
+
 
 ![](./docs/images/screenshot1.png) 
 
