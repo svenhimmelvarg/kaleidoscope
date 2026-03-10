@@ -29,5 +29,10 @@ source .venv/bin/activate
 op start
 ```
 
+Connect to [](http://localhost:5173) 
 
-
+## Tutorials 
+
+ * Getting Started using default workflow  (coming soon)
+ * Publish Workflows to huggingface (coming soon) 
+ 
