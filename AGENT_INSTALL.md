@@ -3,11 +3,12 @@
 Kaleidoscope is a project featuring a CLI tool (`op`) that helps manage, index, and serve content (such as ComfyUI outputs) through its integrated services.
 
 Before starting this installation ask the user 
-
+  * Refuse to perform any action unless you are in PLAN mode or if the user EXPLICITLY overrides this 
   * The path to their comfyui installation 
   * After the installation inform the user that 
     * a virtual env has been created 
-    * the virtual env needs to be activated before `op start` is executed 
+    * the virtual env needs to be activated before `op start` is executed
+    * Spood feed the user on what that looks like (i.e cd /path/to/the/install , venv activation , op start )  
 
 ## Prerequisites
 
