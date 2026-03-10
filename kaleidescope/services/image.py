@@ -13,6 +13,8 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+import tempfile
+
 def update_metadata(png_path: str, metadata_dict: Dict[str, Any]) -> None:
     try:
         with Image.open(png_path) as img:
@@ -25,7 +27,29 @@ def update_metadata(png_path: str, metadata_dict: Dict[str, Any]) -> None:
                 str_value = str(value) if not isinstance(value, str) else value
                 pnginfo.add_text(key, str_value)
 
-            img.save(png_path, format="PNG", pnginfo=pnginfo)
+            # Use a temporary file in the DATA_DIR/tmp to make the save atomic
+            # This prevents race conditions with watchdog file scanners
+            import os
+            from kaleidescope.config import load_config
+            
+            try:
+                config = load_config()
+                data_dir = config.data_dir
+            except Exception:
+                data_dir = os.environ.get("DATA_DIR", "./data")
+                
+            tmp_dir = os.path.join(data_dir, "tmp")
+            os.makedirs(tmp_dir, exist_ok=True)
+            
+            filename = os.path.basename(png_path)
+            tmp_path = os.path.join(tmp_dir, f"{filename}.tmp")
+            
+            # Save to temporary file
+            img.save(tmp_path, format="PNG", pnginfo=pnginfo)
+            
+        # Atomic replace
+        os.replace(tmp_path, png_path)
+        
     except Exception as e:
         logger.error(f"Error updating metadata for {png_path}: {e}")
 
