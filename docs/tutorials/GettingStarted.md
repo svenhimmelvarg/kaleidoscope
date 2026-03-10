@@ -13,6 +13,11 @@ When you first start your page will look like this:
 
 Not much going on. Go to comfyui and open a workflow. I will use the default workflow  
 
+
+## Preparing a Workflow 
+
+Go to the menu and browse templates and chose a text to image workflow. I have chosen ZImageTurbo. 
+
 <img width="558" height="537" alt="image" src="https://github.com/user-attachments/assets/87787bd6-1500-41a8-a901-1de608c4bc71" />
 
 ***Important***  - update the save location  to release/ANYTHING/YOU/WANT/AFTER/THIS 
@@ -30,7 +35,11 @@ after the image is generated and you refresh the Kaleidescope UI , you should se
 <img width="898" height="567" alt="image" src="https://github.com/user-attachments/assets/60b6e563-46d7-4ca5-aa54-253cb7de3fbc" />
 
 
-The workflow has now been imported. Now click on it and let's reuse our workflow 
+The workflow has now been imported. 
+
+## Create new images 
+
+Now click on it and let's reuse our workflow.  
 
 
 <img width="1113" height="1393" alt="image" src="https://github.com/user-attachments/assets/ac794c26-005e-44ff-8bc8-6b892ab49730" />
