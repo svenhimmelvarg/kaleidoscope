@@ -29,7 +29,8 @@ class AssetController {
 
       const { storageId } = await response.json();
       
-      const path = `input/datavelt/${filename}`;
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+      const path = `input/${releaseFolder}/${filename}`;
       const assetId = await this.client.mutation(api.assets.save, {
         storageId,
         source,

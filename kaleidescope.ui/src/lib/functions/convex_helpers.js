@@ -99,11 +99,19 @@ export function replaceHostPort(url, oldHost, newHost) {
 
 /**
  * Format a facet value by removing path and extension
- * @param {string | undefined | null} value - The value to format
+ * @param {any} value - The value to format
  * @returns {string} The formatted value
  */
 export function formatFacetValue(value) {
   if (!value) return '';
+  
+  if (typeof value !== 'string') {
+    value = value.value || value.name || value.type || JSON.stringify(value);
+    if (typeof value !== 'string') {
+        value = String(value);
+    }
+  }
+
   const withoutPath = value.includes('/') ? value.split('/').pop() : value;
   return withoutPath ? withoutPath.replace(/\.[^/.]+$/, '') : '';
 }

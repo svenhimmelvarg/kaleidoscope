@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
   const convexUrl = env.CONVEX_URL  //   || 'http://127.0.0.1:3210'
 
   return {
+    define: {
+      'import.meta.env.VITE_RELEASE_FOLDER': JSON.stringify(env.RELEASE_FOLDER || 'release')
+    },
     plugins: [svelte()],
     build: {
       outDir: '../kaleidescope/static',

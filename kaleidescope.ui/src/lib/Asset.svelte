@@ -168,16 +168,42 @@
 
 
   async function getFacetValues(doc,name){
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const minWeek = getWeekString(twoWeeksAgo);
+    const ret = await mClient.index(indexName).search("", {
+      sort: ['created:desc'],
+      limit: 1000,
+      attributesToRetrieve: ['inputs']
+    });
 
-    const ret =  await mClient.index(indexName).searchForFacetValues({facetName: name, facetQuery: "" , filter : `source = "${doc.source}" AND week >= "${minWeek}" AND inputs.type = "image"` })
-    const images =  ret.facetHits
-      .filter( e =>  e.count > 0 && /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(e.value) )
-      .map( e => e.value )
-    console.log("Asset:getFaceValues", name, images  )
-    return images
+    const uniqueImages = new Set();
+    const images = [];
+
+    ret.hits.forEach(h => {
+      const imageInputs = (h.inputs || []).filter(i => i.type && i.type.trim() === 'image');
+      imageInputs.forEach(i => {
+        if (i.value && /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(i.value)) {
+          if (!uniqueImages.has(i.value)) {
+            uniqueImages.add(i.value);
+            images.push(i.value);
+          }
+        }
+      });
+    });
+    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+    const releaseImages = [];
+    const otherImages = [];
+    
+    images.forEach(img => {
+      if (img.startsWith(`${releaseFolder}/`)) {
+        releaseImages.push(img);
+      } else {
+        otherImages.push(img);
+      }
+    });
+    
+    const finalImages = [...releaseImages, ...otherImages];
+    
+    console.log("Asset:getFaceValues", name, finalImages)
+    return finalImages
 
   }
 
@@ -242,10 +268,11 @@
       outputs.isLoading = true
       err.message = "Asset:file uploaded:"
 
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
       const response = await invokeController.prompt(doc.id,  {
         _id :  i._id,
         field: i.key,
-        value: `virtual://${result.storageId}/${doc.source}/input/datavelt/${file.name}`
+        value: `virtual://${result.storageId}/${doc.source}/input/${releaseFolder}/${file.name}`
       })
 
 
