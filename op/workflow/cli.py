@@ -183,3 +183,66 @@ def workflow_invoke(workflow_id: str, input_file: str):
 
         # Wait before polling again
         time.sleep(2)
+
+
+@click.command(name="workflow:get")
+@click.argument("workflow_id")
+def workflow_get(workflow_id: str):
+    """
+    Get a workflow's details (inputs and text) from Meilisearch by its ID.
+
+    Outputs a JSON object containing the `id`, `inputs`, and `text` fields.
+
+    \b
+    ## Examples
+
+    \b
+    **1. Retrieve a specific workflow**
+    ```bash
+    op workflow:get 1e11af0abd47a164eb008b4caeab57af7a8f064151c6f24f82cfd290da6f6d09
+    ```
+
+    \b
+    **Example Output:**
+    ```json
+    {
+      "id": "1e11af0abd47a164eb008b4caeab57af7a8f064151c6f24f82cfd290da6f6d09",
+      "inputs": [
+        {
+          "_id": "120",
+          "value": "283a78e6ad2ceb5ddb5ab9bb557eae85.jpg",
+          "key": "image",
+          "type": "image "
+        }
+      ],
+      "text": [
+        {
+          "_id": "45",
+          "value": "An incredibly striking high fashion full color editorial...",
+          "key": "text",
+          "type": "text "
+        }
+      ]
+    }
+    ```
+    """
+    config = ensure_config()
+
+    from op.workflow.meilisearch import fetch_workflow_from_meilisearch, extract_workflow_fields
+
+    try:
+        doc = fetch_workflow_from_meilisearch(
+            base_url=config.meilisearch_host, index_name=config.index_name, doc_id=workflow_id
+        )
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            click.echo(f"Workflow '{workflow_id}' not found.", err=True)
+        else:
+            click.echo(f"Failed to fetch workflow '{workflow_id}': {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Failed to fetch workflow '{workflow_id}': {e}", err=True)
+        raise SystemExit(1)
+
+    extracted = extract_workflow_fields(doc)
+    click.echo(json.dumps(extracted, indent=2))

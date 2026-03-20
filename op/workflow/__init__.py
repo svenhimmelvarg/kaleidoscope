@@ -1,3 +1,3 @@
-from op.workflow.cli import workflow_invoke
+from op.workflow.cli import workflow_invoke, workflow_get
 
-__all__ = ["workflow_invoke"]
+__all__ = ["workflow_invoke", "workflow_get"]
