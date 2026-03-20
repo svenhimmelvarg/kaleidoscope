@@ -1,4 +1,6 @@
 import json
+import hashlib
+import os
 from dataclasses import dataclass
 from typing import Dict, Any, List
 
@@ -56,3 +58,41 @@ def extract_outputs(payload: Dict[str, Any], base_path: str, ui_url: str) -> Lis
             outputs.append(WorkflowOutput(file_path=file_path, url=url))
 
     return outputs
+
+
+def compute_file_hash(file_bytes: bytes) -> str:
+    """Computes the SHA256 hash of the file bytes."""
+    return hashlib.sha256(file_bytes).hexdigest()
+
+
+def construct_hashed_filename(original_path: str, file_hash: str) -> str:
+    """Combines the file hash with the original extension (e.g., <hash>.jpg)."""
+    _, ext = os.path.splitext(original_path)
+    return f"{file_hash}{ext}"
+
+
+def is_local_image_path(value: str) -> bool:
+    """Determines if a string value is a valid local path to an image file."""
+    if not isinstance(value, str):
+        return False
+    # Check if it looks like a local path (starts with . or / or has typical image extension)
+    lower_val = value.lower()
+    if lower_val.endswith((".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff")):
+        # Must actually exist to be treated as a local path override
+        if os.path.isfile(value):
+            return True
+    return False
+
+
+def replace_image_paths_in_payload(
+    payload: List[Dict[str, Any]], replacements: Dict[str, str]
+) -> List[Dict[str, Any]]:
+    """Returns a new payload with local paths replaced by the final hashed filenames."""
+    new_payload = []
+    for node in payload:
+        new_node = dict(node)
+        for key, val in new_node.items():
+            if isinstance(val, str) and val in replacements:
+                new_node[key] = replacements[val]
+        new_payload.append(new_node)
+    return new_payload

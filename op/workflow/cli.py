@@ -1,11 +1,22 @@
 import json
 import time
+import os
+import mimetypes
 import click
 import requests
 import logging
 
 from op.config import ensure_config
-from op.workflow.core import build_invoke_url, build_notification_url, extract_outputs
+from op.workflow.core import (
+    build_invoke_url,
+    build_notification_url,
+    extract_outputs,
+    is_local_image_path,
+    compute_file_hash,
+    construct_hashed_filename,
+    replace_image_paths_in_payload,
+)
+from kaleidescope.services.convex import get_client, generate_upload_url, save_asset
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +26,38 @@ logger = logging.getLogger(__name__)
 @click.argument("input_file", type=click.Path(exists=True, dir_okay=False))
 def workflow_invoke(workflow_id: str, input_file: str):
     """
-    Invoke a ComfyUI workflow using the provided workflow ID and input JSON file.
+    Invoke a ComfyUI workflow using the provided workflow ID and an input JSON file.
+
     The input JSON file should contain a list of node overrides.
+    It supports overriding text fields as well as automatically uploading local images.
+
+    \b
+    ## Examples
+
+    \b
+    **1. Text Input Override**
+    Provide a JSON file to override text prompts for a specific node ID:
+    ```json
+    [
+      {
+        "id": "273",
+        "text1": "A high quality professional photograph..."
+      }
+    ]
+    ```
+
+    \b
+    **2. Local Image Upload**
+    Provide a JSON file to override an image input. If the value is a valid local file path,
+    the CLI will automatically upload it and substitute the correct URI before invoking the workflow:
+    ```json
+    [
+      {
+        "id": "78",
+        "image": "./path/to/myimage.jpg"
+      }
+    ]
+    ```
     """
     config = ensure_config()
 
@@ -31,6 +72,63 @@ def workflow_invoke(workflow_id: str, input_file: str):
     api_url = config.kaleidescope_api_url
     ui_url = config.kaleidescope_ui_url
     base_path = config.comfyui_instance_base_path
+    release_folder = config.release_folder or "release"
+
+    # Process image overrides
+    replacements = {}
+    convex_client = None
+
+    for node in payload:
+        for key, val in node.items():
+            if isinstance(val, str) and is_local_image_path(val):
+                local_path = val
+                if local_path in replacements:
+                    continue
+
+                if convex_client is None:
+                    convex_client = get_client(config.convex_url)
+
+                with open(local_path, "rb") as img_f:
+                    file_bytes = img_f.read()
+
+                file_hash = compute_file_hash(file_bytes)
+                hashed_filename = construct_hashed_filename(local_path, file_hash)
+                mime_type, _ = mimetypes.guess_type(local_path)
+                mime_type = mime_type or "application/octet-stream"
+
+                upload_url = generate_upload_url(convex_client)
+                if not upload_url:
+                    click.echo(f"Failed to get upload URL for {local_path}", err=True)
+                    raise SystemExit(1)
+
+                try:
+                    up_resp = requests.post(
+                        upload_url,
+                        headers={"Content-Type": mime_type},
+                        data=file_bytes,
+                    )
+                    up_resp.raise_for_status()
+                    storage_id = up_resp.json().get("storageId")
+                except requests.exceptions.RequestException as e:
+                    click.echo(f"Failed to upload {local_path}: {e}", err=True)
+                    raise SystemExit(1)
+
+                asset_data = {
+                    "storageId": storage_id,
+                    "source": "cli",
+                    "path": f"input/{release_folder}/{hashed_filename}",
+                    "name": hashed_filename,
+                    "type": mime_type,
+                    "size": len(file_bytes),
+                }
+
+                save_asset(convex_client, asset_data)
+
+                virtual_uri = f"virtual://{storage_id}/cli/input/{release_folder}/{hashed_filename}"
+                replacements[local_path] = virtual_uri
+
+    if replacements:
+        payload = replace_image_paths_in_payload(payload, replacements)
 
     invoke_url = build_invoke_url(api_url, workflow_id)
 
