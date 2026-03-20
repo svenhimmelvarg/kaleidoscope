@@ -116,7 +116,16 @@
   }
   
   function buildFilters(){
-    const defaultFilters = ["vote != -1", "NOT score < 0", "created EXISTS"];
+    let defaultFilters = ["vote != -1", "NOT score < 0", "created EXISTS"];
+    
+    // Check if the current route is for downvoted items
+    const isDownvotedRoute = searchState.routeFilters.some((f: any) => f.expression === 'vote < 0 OR score < 0');
+    
+    if (isDownvotedRoute) {
+      // Remove default filters that hide downvoted content when explicitly searching for it
+      defaultFilters = ["created EXISTS"];
+    }
+
     const dynamicFilters = searchState.filters.map((f: any) => {
       if (f?.expression) return f.expression;
       return f?.op ? `${f.attribute} ${f.op} '${f.value}'` : `${f.attribute} = '${f.value}'`;

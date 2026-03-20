@@ -44,3 +44,19 @@ def update_notification(client: ConvexClient, notification_id: str, data: Dict[s
     except Exception as e:
         logger.error(f"Error updating notification {notification_id}: {e}")
         return False
+
+
+def generate_upload_url(client: ConvexClient) -> Optional[str]:
+    try:
+        return client.mutation("assets:generateUploadUrl", {})
+    except Exception as e:
+        logger.error(f"Error generating upload url: {e}")
+        return None
+
+
+def save_asset(client: ConvexClient, data: Dict[str, Any]) -> Optional[str]:
+    try:
+        return client.mutation("assets:save", data)
+    except Exception as e:
+        logger.error(f"Error saving asset: {e}")
+        return None

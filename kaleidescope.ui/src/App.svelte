@@ -83,6 +83,9 @@ const searchState = $state({
       case 'upvoted':
         newRouteFilters = [{ expression: 'vote > 0 OR score > 0' }]
         break
+      case 'downvoted':
+        newRouteFilters = [{ expression: 'vote < 0 OR score < 0' }]
+        break
       default:
         if (filter && filter.startsWith('thisweek_dayOfWeek:')) {
            const parts = filter.split(':');
