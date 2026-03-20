@@ -21,7 +21,7 @@ from kaleidescope.services.convex import get_client, generate_upload_url, save_a
 logger = logging.getLogger(__name__)
 
 
-@click.command(name="workflow:invoke")
+@click.command(name="workflow:invoke", no_args_is_help=True)
 @click.argument("workflow_id")
 @click.argument("input_file", type=click.Path(exists=True, dir_okay=False))
 def workflow_invoke(workflow_id: str, input_file: str):
@@ -185,7 +185,7 @@ def workflow_invoke(workflow_id: str, input_file: str):
         time.sleep(2)
 
 
-@click.command(name="workflow:get")
+@click.command(name="workflow:get", no_args_is_help=True)
 @click.argument("workflow_id")
 def workflow_get(workflow_id: str):
     """
