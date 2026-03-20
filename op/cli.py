@@ -10,6 +10,7 @@ from op.commands.ingest import ingest as ingest_cmd
 from op.commands.supervisor import supervisor as supervisor_cmd
 from op.commands.start import start as start_cmd
 from op.commands.stop import stop as stop_cmd
+from op.workflow import workflow_invoke
 
 
 @click.group()
@@ -38,6 +39,7 @@ cli.add_command(ingest_cmd)
 cli.add_command(supervisor_cmd)
 cli.add_command(start_cmd)
 cli.add_command(stop_cmd)
+cli.add_command(workflow_invoke)
 
 
 def main():
