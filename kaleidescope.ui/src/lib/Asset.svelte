@@ -881,6 +881,26 @@
           </div>
         {/if}
 
+        {#if doc.lineage && Object.keys(doc.lineage).length > 0}
+          <div class="asset__facet-group">
+            <div class="asset__facet-title">Lineage:</div>
+            <div class="asset__facet-list">
+              {#each Object.entries(doc.lineage) as [lvl, paths]}
+                {#each paths as path}
+                  {@const lastWord = path.split(" > ").pop()}
+                  <div
+                    class="asset__facet-pill asset__facet-pill--lineage"
+                    title={path}
+                    onclick={() => handleFilterClick({ attribute: `lineage.${lvl}`, value: path })}
+                  >
+                    {lastWord}
+                  </div>
+                {/each}
+              {/each}
+            </div>
+          </div>
+        {/if}
+
         {#if doc.inputs}
           <div class="asset__facet-group">
             <div class="asset__facet-title">Image Inputs:</div>
@@ -1319,6 +1339,16 @@ padding: 1.51rem;*/
 
   .asset__facet-pill--workflow:hover {
     background-color: #c8d5cc;
+    color: #4a3f38;
+  }
+
+  .asset__facet-pill--lineage {
+    background-color: #e8d8d8;
+    color: #6b5b54;
+  }
+
+  .asset__facet-pill--lineage:hover {
+    background-color: #d5c4c4;
     color: #4a3f38;
   }
 

@@ -10,6 +10,8 @@ import datetime
 from math import gcd
 from PIL import Image
 from dotenv import dotenv_values
+import spacy,nltk,wordnet 
+from graph import semantic
 
 config = dotenv_values(".env")
 
@@ -745,6 +747,7 @@ def sink(outputs):
     print(" * Write to search index")
     sink_count = 0
     dead_count = 0
+    discovered_lineage_fields = set()
     for doc in outputs:
         # if cache_exists(doc["id"],"milliesearch_write") and args.overwrite != "true":
         #     print(f"Skipping  - milli doc - '{doc['id']}'")
@@ -753,6 +756,7 @@ def sink(outputs):
         data1 = doc["png_prompt.json"]["content"]
 
         source_path = doc["source_path"]
+        import os 
         file_stat = os.stat(source_path)
         creation_time = datetime.datetime.fromtimestamp(file_stat.st_ctime)
         unix_timestamp = int(file_stat.st_ctime)  # Convert to Unix timestamp
@@ -806,6 +810,61 @@ def sink(outputs):
             else:
                 d1["time_bucket"] = "long"
 
+        # --- Semantic Lineage ---
+        try:
+            import sys
+            import os
+
+#            sys.path.append(_os.path.dirname(_os.path.abspath(__file__)))
+
+            texts = d1.get("text", [])
+            if len(texts) == 1:
+                text_val = texts[0].get("value", "")
+                if text_val:
+                    nouns = semantic.extract_nouns(text_val)
+                    
+                    lineages_map = semantic.lineage(nouns)
+                    throwaways = [
+                        "whole",
+                        "abstraction",
+                        "entity",
+                        "physical_entity",
+                        "object",
+                        "matter",
+                    ]
+
+                    for word, path in lineages_map.items():
+                        cut_idx = -1
+                        for i, p in enumerate(path):
+                            if p in throwaways:
+                                cut_idx = i
+
+                        if cut_idx != -1:
+                            path = path[cut_idx + 1 :]
+
+                        if not path:
+                            continue
+
+                        current_path = []
+                        if "lineage" not in d1:
+                            d1["lineage"] = {}
+
+                        for lvl_idx, node in enumerate(path):
+                            current_path.append(node)
+                            lvl_key = f"lvl{lvl_idx}"
+                            lvl_val = " > ".join(current_path)
+
+                            if lvl_key not in d1["lineage"]:
+                                d1["lineage"][lvl_key] = []
+                            if lvl_val not in d1["lineage"][lvl_key]:
+                                d1["lineage"][lvl_key].append(lvl_val)
+
+                            discovered_lineage_fields.add(lvl_key)
+        except Exception as e:
+            print(f"[SEMANTIC] Error: {e}")
+        # --- End Semantic Lineage ---
+
+        print(json.dumps(d1, indent=2))
         meillisearch_write(url, effective_index_name, d1)
 
         # Generate thumbnail proactively
@@ -837,6 +896,48 @@ def sink(outputs):
     print(f"dead count:  {dead_count}")
     if sink_count > 0:
         print(json.dumps(d1, indent=2))
+
+    if discovered_lineage_fields:
+        base_fields = [
+            "loras",
+            "models",
+            "schedulers",
+            "samplers",
+            "dd",
+            "mm",
+            "yy",
+            "week",
+            "weekday",
+            "dayOfWeek",
+            "workflow_id",
+            "resolution",
+            "orientation",
+            "width",
+            "height",
+            "source",
+            "workflow_structure_id",
+            "workflow_structure_signature_id",
+            "inputs",
+            "wf_hash_id",
+            "inputs_hash_id",
+            "aspect_ratio",
+            "megapixels",
+            "elapsed_ms",
+            "time_bucket",
+            "vote",
+            "score",
+            "parent_id",
+            "created",
+        ]
+
+        # Format the keys to use dot notation for Meilisearch (e.g. "lineage.lvl0")
+        lineage_dot_fields = [f"lineage.{lvl}" for lvl in discovered_lineage_fields]
+        all_fields = list(set(base_fields) | set(lineage_dot_fields))
+
+        meillisearch_filter_fields(url, effective_index_name, all_fields)
+        print(
+            f"Updated filterable attributes with {len(discovered_lineage_fields)} new lineage levels."
+        )
 
 
 def fn_write_keys(data, ctx):
