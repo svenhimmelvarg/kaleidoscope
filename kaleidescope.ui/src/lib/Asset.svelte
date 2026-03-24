@@ -652,7 +652,7 @@
                 <span>Portrait: </span>
                 {#each aspectRatios as ar}
 
-                  {#if ar.includes("Portrait") || ar.includes("Vertical")}
+                  {#if ar.includes("Portrait") || ar.includes("Vertical") || ar.includes("Square")}
                   <span class:selected-aspect-ratio={node.value == ar} onclick={async (e) => {
                           let newNode = node
                           node.value = ar
