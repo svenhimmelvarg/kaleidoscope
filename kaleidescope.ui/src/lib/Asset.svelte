@@ -886,15 +886,19 @@
             <div class="asset__facet-title">Lineage:</div>
             <div class="asset__facet-list">
               {#each Object.entries(doc.lineage) as [lvl, paths]}
+                {@const nextLvl = 'lvl' + (parseInt(lvl.replace('lvl', '')) + 1)}
                 {#each paths as path}
-                  {@const lastWord = path.split(" > ").pop()}
-                  <div
-                    class="asset__facet-pill asset__facet-pill--lineage"
-                    title={path}
-                    onclick={() => handleFilterClick({ attribute: `lineage.${lvl}`, value: path })}
-                  >
-                    {lastWord}
-                  </div>
+                  {@const childCount = doc.lineage[nextLvl] ? doc.lineage[nextLvl].filter(p => p.startsWith(path + ' > ')).length : 0}
+                  {#if lvl === 'lvl0' || childCount === 0}
+                    {@const lastWord = path.split(" > ").pop()}
+                    <div
+                      class="asset__facet-pill asset__facet-pill--lineage"
+                      title={path}
+                      onclick={() => handleFilterClick({ attribute: `lineage.${lvl}`, value: path })}
+                    >
+                      {lastWord}
+                    </div>
+                  {/if}
                 {/each}
               {/each}
             </div>

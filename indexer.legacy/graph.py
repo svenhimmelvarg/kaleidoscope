@@ -10,7 +10,7 @@ import datetime
 from math import gcd
 from PIL import Image
 from dotenv import dotenv_values
-import spacy,nltk,wordnet 
+import spacy, nltk, wordnet
 from graph import semantic
 
 config = dotenv_values(".env")
@@ -756,7 +756,8 @@ def sink(outputs):
         data1 = doc["png_prompt.json"]["content"]
 
         source_path = doc["source_path"]
-        import os 
+        import os
+
         file_stat = os.stat(source_path)
         creation_time = datetime.datetime.fromtimestamp(file_stat.st_ctime)
         unix_timestamp = int(file_stat.st_ctime)  # Convert to Unix timestamp
@@ -815,14 +816,14 @@ def sink(outputs):
             import sys
             import os
 
-#            sys.path.append(_os.path.dirname(_os.path.abspath(__file__)))
+            #            sys.path.append(_os.path.dirname(_os.path.abspath(__file__)))
 
             texts = d1.get("text", [])
             if len(texts) == 1:
                 text_val = texts[0].get("value", "")
                 if text_val:
                     nouns = semantic.extract_nouns(text_val)
-                    
+
                     lineages_map = semantic.lineage(nouns)
                     throwaways = [
                         "whole",
@@ -831,6 +832,12 @@ def sink(outputs):
                         "physical_entity",
                         "object",
                         "matter",
+                        "organism",
+                        "world",
+                        "attribute",
+                        "relation",
+                        "psychological_feature",
+                        "artifact",
                     ]
 
                     for word, path in lineages_map.items():

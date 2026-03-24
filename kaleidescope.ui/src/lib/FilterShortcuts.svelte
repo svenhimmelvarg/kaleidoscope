@@ -13,7 +13,7 @@
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   function getVisibleShortcuts() {
-    const shortcuts: Array<{ type: string; value: string; label: string; facet?: string; group: 'date' | 'drilldown' }> = [];
+    const shortcuts: Array<{ type: string; value: string; label: string; facet?: string; group: 'date' | 'drilldown' | 'lineage' }> = [];
     
     const reduced = reduceFacetDistribution(facets);
     
@@ -23,6 +23,52 @@
 
     const timeShortcuts: any[] = [];
     const drillDownShortcuts: any[] = [];
+    const lineageShortcuts: any[] = [];
+    
+    // Lineage progressive drill-down
+    let activeLineageValue: string | null = null;
+    if (params.filter && params.filter.startsWith('lineage.lvl')) {
+      activeLineageValue = params.filter.split(':').slice(1).join(':');
+    }
+    if (searchState.customFilters) {
+      const lineageFilter = searchState.customFilters.find((f: any) => f.attribute && f.attribute.startsWith('lineage.lvl'));
+      if (lineageFilter) {
+        activeLineageValue = lineageFilter.value;
+      }
+    }
+
+    if (activeLineageValue && reduced) {
+      const pathsObj: Record<string, {count: number, facet: string}> = {};
+      for (const [key, value] of Object.entries(reduced)) {
+        if (key.startsWith('lineage.lvl')) {
+          for (const [path, count] of Object.entries(value as Record<string, number>)) {
+            if (path.startsWith(activeLineageValue + " > ")) {
+              pathsObj[path] = { count, facet: key };
+            }
+          }
+        }
+      }
+      
+      // Filter to leaves
+      const leaves = Object.keys(pathsObj).filter(path => {
+        return !Object.keys(pathsObj).some(otherPath => otherPath.startsWith(path + " > "));
+      });
+      
+      // Sort leaves by count descending
+      leaves.sort((a, b) => pathsObj[b].count - pathsObj[a].count);
+      
+      // Add to lineageShortcuts
+      leaves.forEach(leaf => {
+        const shortName = leaf.split(' > ').pop();
+        lineageShortcuts.push({
+          type: 'dynamic',
+          facet: pathsObj[leaf].facet,
+          value: leaf,
+          label: `${shortName} (${pathsObj[leaf].count})`,
+          group: 'lineage'
+        });
+      });
+    }
     
     // 1. Months: up to last 3 months of the current year (or latest available year)
     if (reduced.mm && reduced.yy) {
@@ -165,7 +211,7 @@
       addTopFacets('time_bucket', 'Time: ');
     }
     
-    shortcuts.push(...drillDownShortcuts, ...timeShortcuts);
+    shortcuts.push(...drillDownShortcuts, ...timeShortcuts, ...lineageShortcuts);
     
     return shortcuts;
   }
@@ -189,7 +235,7 @@
     const filterString = `${shortcut.facet}:${shortcut.value}`;
     
     // If it's a primary time/date filter, push it to URL params
-    const isDrillDownFacet = ['models', 'loras', 'orientation', 'time_bucket', 'samplers', 'schedulers'].includes(shortcut.facet);
+    const isDrillDownFacet = ['models', 'loras', 'orientation', 'time_bucket', 'samplers', 'schedulers'].includes(shortcut.facet) || (shortcut.facet && shortcut.facet.startsWith('lineage.lvl'));
     
     if (!isDrillDownFacet) {
       const isActive = params.filter === filterString;
@@ -222,12 +268,14 @@
 
   let dateShortcuts = $derived(inactiveShortcuts.filter(s => s.group === 'date'));
   let drillDownShortcuts = $derived(inactiveShortcuts.filter(s => s.group === 'drilldown'));
+  let lineageShortcuts = $derived(inactiveShortcuts.filter(s => s.group === 'lineage'));
 
   // Logic to populate rows:
   // If there are date shortcuts, they go in row 1, and drill-downs (if any) go in row 2.
   // If there are NO date shortcuts, drill-downs go in row 1, and row 2 is empty.
   let row1Shortcuts = $derived(dateShortcuts.length > 0 ? dateShortcuts : drillDownShortcuts);
   let row2Shortcuts = $derived(dateShortcuts.length > 0 ? drillDownShortcuts : []);
+  let row3Shortcuts = $derived(lineageShortcuts);
 
   function getActiveFilterLabel() {
     if (!params.filter) return null;
@@ -235,6 +283,11 @@
     if (params.filter.startsWith('thisweek_dayOfWeek:')) {
       const parts = params.filter.split(':');
       return parts[2]; // returns the day string e.g. "Saturday"
+    }
+    if (params.filter.startsWith('lineage.lvl')) {
+      const parts = params.filter.split(':');
+      const value = parts.slice(1).join(':');
+      return value.split(' > ').pop();
     }
     if (params.filter.includes(':')) {
       const parts = params.filter.split(':');
@@ -286,12 +339,15 @@
 
     {#if searchState.customFilters}
       {#each searchState.customFilters as filter}
+        {@const isLineage = filter.attribute && filter.attribute.startsWith('lineage.lvl')}
+        {@const displayValue = isLineage && filter.value ? filter.value.split(' > ').pop() : (filter.value ? (filter.value.length >= 20 ? filter.value.slice(0, 20) + '...' : filter.value) : filter.expression)}
+        {@const displayAttr = isLineage ? '' : (filter.attribute || 'expression') + ': '}
         <button
           class="filter-shortcuts__pill active"
           onclick={() => onRemoveFilter(filter.attribute, filter.value, filter.expression)}
           title="Remove filter"
         >
-          {filter.attribute || 'expression'}: {filter.value ? (filter.value.length >= 20 ? filter.value.slice(0, 20) + '...' : filter.value) : filter.expression} &times;
+          {displayAttr}{displayValue} &times;
         </button>
       {/each}
     {/if}
@@ -302,6 +358,19 @@
       {#each row2Shortcuts as shortcut}
         <button 
           class="filter-shortcuts__pill"
+          onclick={() => handleShortcutClick(shortcut)}
+        >
+          {shortcut.label}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if row3Shortcuts.length > 0}
+    <div class="filter-shortcuts row-3">
+      {#each row3Shortcuts as shortcut}
+        <button 
+          class="filter-shortcuts__pill filter-shortcuts__pill--lineage"
           onclick={() => handleShortcutClick(shortcut)}
         >
           {shortcut.label}
@@ -373,5 +442,17 @@
   .filter-shortcuts__search:focus {
     border-color: rgba(60, 60, 67, 0.4);
     background-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .filter-shortcuts__pill--lineage {
+    background-color: #fef9c3;
+    border-color: #fde047;
+    color: #854d0e;
+  }
+
+  .filter-shortcuts__pill--lineage:hover {
+    background-color: #fef08a;
+    border-color: #facc15;
+    color: #713f12;
   }
 </style>
