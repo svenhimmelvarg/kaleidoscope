@@ -30,10 +30,10 @@ const client = useConvexClient()
 
 
 
-const indexName = "comfy_outputs_v110"
+const indexName = import.meta.env.VITE_INDEX_NAME
 
 const searchState = $state({
-  indexName: "comfy_outputs_v110",
+  indexName: import.meta.env.VITE_INDEX_NAME,
   q: '',
   routeFilters: [] as any[],
   customFilters: [] as any[],
