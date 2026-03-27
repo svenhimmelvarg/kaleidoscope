@@ -516,7 +516,13 @@ def invoke_workflow_v2(
             if png_workflow and isinstance(png_workflow, dict) and "message" not in png_workflow:
                 meta_dict["workflow"] = json.dumps(png_workflow)
             if trace_data:
-                meta_dict["trace"] = json.dumps(trace_data)
+                # Add traced_elapsed_ms which is the sum of all trace_data elapsed_ms
+                traced_elapsed_ms = sum(t.get("elapsed_ms", 0) for t in trace_data)
+                meta_dict["traced_elapsed_ms"] = traced_elapsed_ms
+
+                # Filter traces to only those >= 1000ms
+                filtered_trace_data = [t for t in trace_data if t.get("elapsed_ms", 0) >= 1000]
+                meta_dict["trace"] = json.dumps(filtered_trace_data)
             update_metadata(path, meta_dict)
             img_data["_id"] = hash_file(path)
             logger.info(f"Hashed {path} to {img_data['_id']}")

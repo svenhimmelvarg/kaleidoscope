@@ -735,6 +735,7 @@ def sink(outputs):
             "aspect_ratio",
             "megapixels",
             "elapsed_ms",
+            "traced_elapsed_ms",
             "time_bucket",
             "vote",
             "score",
@@ -789,6 +790,7 @@ def sink(outputs):
         d1["inputs_hash_id"] = new_hash_inputs(d1)
         d1["parent_id"] = fn_get_parent_id(data1, {"source_path": source_path})
         d1["trace"] = fn_get_trace(data1, {"source_path": source_path})
+        d1["traced_elapsed_ms"] = fn_get_traced_elapsed_ms(data1, {"source_path": source_path})
         d1["score"] = 0
         d1["vote"] = 0
 
@@ -956,6 +958,48 @@ def fn_get_parent_id(data, ctx):
                 )
     except Exception as e:
         log("fn_get_parent_id", f"Error: {e}")
+    return None
+
+
+def fn_get_traced_elapsed_ms(data, ctx):
+    """Extract traced_elapsed_ms from PNG metadata.
+
+    Reads the 'traced_elapsed_ms' field from PNG text chunks and returns it.
+
+    Args:
+        data: Unused
+        ctx: Context dict containing 'source_path' key with the PNG file path
+
+    Returns:
+        int or None: elapsed time in milliseconds, or None if not found
+    """
+    from PIL import Image
+
+    source_path = ctx.get("source_path")
+    if not source_path:
+        log("fn_get_traced_elapsed_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
+        return None
+    if not os.path.exists(source_path):
+        log("fn_get_traced_elapsed_ms", f"File not found: {source_path}")
+        return None
+
+    try:
+        with Image.open(source_path) as img:
+            if hasattr(img, "text") and "traced_elapsed_ms" in img.text:
+                raw_value = img.text["traced_elapsed_ms"]
+                log("fn_get_traced_elapsed_ms", f"Found traced_elapsed_ms: {raw_value}")
+                if isinstance(raw_value, str):
+                    numeric_value = float(raw_value)
+                else:
+                    numeric_value = float(raw_value)
+                return int(numeric_value)
+            else:
+                log(
+                    "fn_get_traced_elapsed_ms",
+                    f"No traced_elapsed_ms in text keys: {list(img.text.keys()) if hasattr(img, 'text') else 'no text attr'}",
+                )
+    except Exception as e:
+        log("fn_get_traced_elapsed_ms", f"Error: {e}")
     return None
 
 

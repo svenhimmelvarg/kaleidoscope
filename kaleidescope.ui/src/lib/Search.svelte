@@ -15,6 +15,7 @@
   import Notifications from './Notifications.svelte';
   import FilterShortcuts from './FilterShortcuts.svelte';
   import { querystring, replace, push } from 'svelte-spa-router';
+  import Metrics from './Metrics.svelte';
   
 
  let { params = {} }  = $props()
@@ -240,6 +241,12 @@
   let isDetailOn = $state(false)
   let text = $derived(searchState.q)
   let name = $state('')
+  let showMetrics = $state(false)
+  let hasWorkflowIdFilter = $derived(
+    searchState.filters.some((f: any) => 
+      f.attribute === 'workflow_id' || (f.expression && f.expression.includes('workflow_id'))
+    )
+  )
   
   // Initialize sortable attributes for the index
   async function initializeSortableAttributes() {
@@ -309,6 +316,23 @@
         {:else}
         <!-- {JSON.stringify(searchState)} -->
         <SearchResultGrid {results} {isDetailOn} onUpdate={addFilter} onSelect={() =>  hideElements = !hideElements  }/>
+        {#if hasWorkflowIdFilter}
+          <div style="text-align: center; margin-top: 1rem;">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span 
+              role="button"
+              tabindex="0"
+              style="color: grey; cursor: pointer; user-select: none;" 
+              onclick={() => showMetrics = !showMetrics}
+            >
+              metrics
+            </span>
+          </div>
+          {#if showMetrics}
+            <Metrics data={results.entries} onclick={() => showMetrics = false} />
+          {/if}
+        {/if}
         {/if}
         
         <!-- Infinite scroll sentinel and loading indicator -->
