@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       'import.meta.env.VITE_RELEASE_FOLDER': JSON.stringify(env.RELEASE_FOLDER || 'release'),
-      'import.meta.env.VITE_INDEX_NAME': JSON.stringify(env.INDEX_NAME || 'comfy_outputs_v110')
+      'import.meta.env.VITE_INDEX_NAME': JSON.stringify(env.INDEX_NAME || 'comfy_outputs_v110'),
+      'import.meta.env.VITE_INVOKE_METHOD': JSON.stringify(env.INVOKE_METHOD || 'invoke')
     },
     plugins: [svelte()],
     build: {

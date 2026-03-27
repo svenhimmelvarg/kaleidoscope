@@ -12,7 +12,9 @@ class InvokeController {
         }
       ];
 
-      const response = await fetch(`${this.baseUrl}/workflow/${id}/invoke`, {
+      const invokeMethod = import.meta.env.VITE_INVOKE_METHOD || 'invoke';
+
+      const response = await fetch(`${this.baseUrl}/workflow/${id}/${invokeMethod}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

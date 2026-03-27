@@ -3,6 +3,9 @@ import requests
 import time
 import logging
 import shutil
+import websocket
+import json
+import uuid
 from typing import Dict, Any, List, Optional, Tuple
 from kaleidescope.config import Config
 from convex import ConvexClient
@@ -281,6 +284,7 @@ def invoke_workflow(
     from op.indexer.utils import hash_file
 
     import json
+
     for img_data in response_images:
         path = img_data.pop("_path")
         if os.path.exists(path):
@@ -295,6 +299,198 @@ def invoke_workflow(
             logger.error(f"File {path} not found for hashing")
 
     # Update notification success
+    logger.info(
+        f"Updating notification {notification_id}: {len(response_images)} images, elapsed={elapsed:.0f}ms"
+    )
+    update_notification(
+        convex_client,
+        notification_id,
+        {
+            "status": "completed",
+            "payload": {
+                "input": body,
+                "output": {"images": response_images, "elapsed_ms": elapsed},
+            },
+        },
+    )
+
+
+def invoke_workflow_v2(
+    config: Config,
+    convex_client: ConvexClient,
+    prompt_id: str,
+    notification_id: str,
+    body: List[Dict[str, Any]],
+    png_prompt: Dict[str, Any],
+    png_workflow: Dict[str, Any],
+):
+    # Prepare payload
+    payload = png_prompt.copy()
+
+    # Apply overrides
+    for entry in body:
+        node_id = entry.get("id")
+        field = next((k for k in entry.keys() if k != "id"), None)
+        if not field:
+            continue
+        value = entry.get(field)
+        if isinstance(value, str) and is_virtual_uri(value):
+            value = process_virtual_uri(convex_client, value, config)
+        elif isinstance(value, str) and is_local_output_uri(value):
+            value = process_local_output_uri(value, config)
+        if node_id in payload and "inputs" in payload[node_id]:
+            payload[node_id]["inputs"][field] = value
+
+    comfy_url = "http://127.0.0.1:8188"
+    comfy_host = "127.0.0.1:8188"
+    client_id = str(uuid.uuid4())
+
+    prompt_id_resp = queue_prompt(comfy_url, payload, client_id)
+    logger.info(f"ComfyUI prompt queued v2: prompt_id={prompt_id_resp}, client_id={client_id}")
+
+    from kaleidescope.services.convex import update_notification
+
+    if not prompt_id_resp:
+        update_notification(
+            convex_client,
+            notification_id,
+            {
+                "status": "ERROR",
+                "payload": {"input": body, "output": {"error": "Could not queue prompt v2"}},
+            },
+        )
+        return
+
+    update_notification(convex_client, notification_id, {"workflow_id": prompt_id_resp})
+
+    start_time = time.time()
+    max_wait = 300  # 5 mins
+
+    try:
+        ws_url = f"ws://{comfy_host}/ws?clientId={client_id}"
+        logger.info(f"Connecting to ws: {ws_url}")
+        ws = websocket.create_connection(ws_url, timeout=max_wait)
+
+        while True:
+            if time.time() - start_time > max_wait:
+                logger.error("Timeout waiting for job via websocket")
+                break
+
+            out = ws.recv()
+            if isinstance(out, str):
+                message = json.loads(out)
+                msg_type = message.get("type")
+                data = message.get("data", {})
+
+                if msg_type == "executing":
+                    node_id = data.get("node")
+                    if node_id is None:
+                        # Job is completed
+                        logger.info("✅ Job Completed via WS!")
+                        break
+        ws.close()
+    except Exception as e:
+        logger.error(f"Error tracking websocket: {e}")
+        update_notification(
+            convex_client,
+            notification_id,
+            {
+                "status": "ERROR",
+                "payload": {"input": body, "output": {"error": f"WS Error: {str(e)}"}},
+            },
+        )
+        return
+
+    # Fetch job info from new API
+    try:
+        job_url = f"{comfy_url}/api/jobs/{prompt_id_resp}"
+        logger.info(f"Fetching job info from: {job_url}")
+        res = requests.get(job_url)
+        res.raise_for_status()
+        job_data = res.json()
+    except Exception as e:
+        logger.error(f"Error fetching job from /api/jobs: {e}")
+        update_notification(
+            convex_client,
+            notification_id,
+            {
+                "status": "ERROR",
+                "payload": {"input": body, "output": {"error": f"Jobs API Error: {str(e)}"}},
+            },
+        )
+        return
+
+    if "outputs" not in job_data:
+        update_notification(
+            convex_client,
+            notification_id,
+            {
+                "status": "ERROR",
+                "payload": {"input": body, "output": {"error": "No outputs in job_data"}},
+            },
+        )
+        return
+
+    elapsed = (time.time() - start_time) * 1000
+    outputs = job_data["outputs"]
+    logger.info(
+        f"ComfyUI v2 job outputs: node_ids={list(outputs.keys())}, filter={config.output_folder_filter}"
+    )
+
+    image_paths = []
+    response_images = []
+
+    for node_id, output_data in outputs.items():
+        if "images" not in output_data:
+            logger.debug(f"Node {node_id}: no images key in output")
+            continue
+
+        logger.info(f"Node {node_id}: found {len(output_data['images'])} images")
+        for img in output_data["images"]:
+            subfolder = img.get("subfolder", "")
+            filename = img.get("filename", "")
+            if config.output_folder_filter and subfolder.find(config.output_folder_filter) < 0:
+                logger.info(
+                    f"Filtered out: subfolder='{subfolder}' does not contain '{config.output_folder_filter}'"
+                )
+                continue
+
+            logger.info(f"Including image: subfolder='{subfolder}', filename='{filename}'")
+
+            full_path = os.path.join(
+                config.comfyui_instance_base_path,
+                "output",
+                subfolder,
+                filename,
+            )
+            full_path = os.path.abspath(full_path)
+            image_paths.append(full_path)
+
+            instance_name = os.path.basename(config.comfyui_instance_base_path.rstrip("/\\"))
+            uri = f"/images/{instance_name}/output/{subfolder}/{filename}"
+
+            response_images.append({"uri": uri, "_path": full_path, "elapsed_ms": elapsed})
+
+    all_found, missing = wait_for_files(image_paths)
+    if not all_found:
+        logger.warning(f"Missing files: {missing}")
+
+    from kaleidescope.services.image import update_metadata
+    from op.indexer.utils import hash_file
+
+    for img_data in response_images:
+        path = img_data.pop("_path")
+        if os.path.exists(path):
+            meta_dict = {"elapsed_ms": elapsed, "parent_id": prompt_id}
+            if png_workflow and isinstance(png_workflow, dict) and "message" not in png_workflow:
+                meta_dict["workflow"] = json.dumps(png_workflow)
+            update_metadata(path, meta_dict)
+            img_data["_id"] = hash_file(path)
+            logger.info(f"Hashed {path} to {img_data['_id']}")
+        else:
+            img_data["_id"] = str(hash(img_data["uri"]))
+            logger.error(f"File {path} not found for hashing")
+
     logger.info(
         f"Updating notification {notification_id}: {len(response_images)} images, elapsed={elapsed:.0f}ms"
     )
