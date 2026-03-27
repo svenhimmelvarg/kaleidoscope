@@ -366,10 +366,15 @@ def invoke_workflow_v2(
     start_time = time.time()
     max_wait = 300  # 5 mins
 
+    trace_data = []
+
     try:
         ws_url = f"ws://{comfy_host}/ws?clientId={client_id}"
         logger.info(f"Connecting to ws: {ws_url}")
         ws = websocket.create_connection(ws_url, timeout=max_wait)
+
+        current_node_id = None
+        node_start_time = None
 
         while True:
             if time.time() - start_time > max_wait:
@@ -382,12 +387,38 @@ def invoke_workflow_v2(
                 msg_type = message.get("type")
                 data = message.get("data", {})
 
-                if msg_type == "executing":
+                if msg_type == "execution_cached":
+                    nodes = data.get("nodes", [])
+                    for n in nodes:
+                        class_type = payload.get(str(n), {}).get("class_type", "Unknown")
+                        trace_data.append(
+                            {"node_id": str(n), "class_type": class_type, "elapsed_ms": 0}
+                        )
+
+                elif msg_type == "executing":
                     node_id = data.get("node")
+                    now = time.time()
+
+                    if current_node_id is not None and node_start_time is not None:
+                        elapsed_ms = int((now - node_start_time) * 1000)
+                        class_type = payload.get(str(current_node_id), {}).get(
+                            "class_type", "Unknown"
+                        )
+                        trace_data.append(
+                            {
+                                "node_id": str(current_node_id),
+                                "class_type": class_type,
+                                "elapsed_ms": elapsed_ms,
+                            }
+                        )
+
                     if node_id is None:
                         # Job is completed
                         logger.info("✅ Job Completed via WS!")
                         break
+                    else:
+                        current_node_id = str(node_id)
+                        node_start_time = now
         ws.close()
     except Exception as e:
         logger.error(f"Error tracking websocket: {e}")
@@ -484,6 +515,8 @@ def invoke_workflow_v2(
             meta_dict = {"elapsed_ms": elapsed, "parent_id": prompt_id}
             if png_workflow and isinstance(png_workflow, dict) and "message" not in png_workflow:
                 meta_dict["workflow"] = json.dumps(png_workflow)
+            if trace_data:
+                meta_dict["trace"] = json.dumps(trace_data)
             update_metadata(path, meta_dict)
             img_data["_id"] = hash_file(path)
             logger.info(f"Hashed {path} to {img_data['_id']}")

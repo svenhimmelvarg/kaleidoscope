@@ -788,6 +788,7 @@ def sink(outputs):
         d1["wf_hash_id"] = new_hash(d1)
         d1["inputs_hash_id"] = new_hash_inputs(d1)
         d1["parent_id"] = fn_get_parent_id(data1, {"source_path": source_path})
+        d1["trace"] = fn_get_trace(data1, {"source_path": source_path})
         d1["score"] = 0
         d1["vote"] = 0
 
@@ -955,6 +956,45 @@ def fn_get_parent_id(data, ctx):
                 )
     except Exception as e:
         log("fn_get_parent_id", f"Error: {e}")
+    return None
+
+
+def fn_get_trace(data, ctx):
+    """Extract trace from PNG metadata.
+
+    Reads the 'trace' field from PNG text chunks and returns it.
+
+    Args:
+        data: Unused
+        ctx: Context dict containing 'source_path' key with the PNG file path
+
+    Returns:
+        list or dict or None: trace json, or None if not found
+    """
+    from PIL import Image
+    import json
+
+    source_path = ctx.get("source_path")
+    if not source_path:
+        log("fn_get_trace", f"No source_path in ctx keys: {list(ctx.keys())}")
+        return None
+    if not os.path.exists(source_path):
+        log("fn_get_trace", f"File not found: {source_path}")
+        return None
+
+    try:
+        with Image.open(source_path) as img:
+            if hasattr(img, "text") and "trace" in img.text:
+                trace_str = img.text["trace"]
+                log("fn_get_trace", f"Found trace")
+                return json.loads(trace_str)
+            else:
+                log(
+                    "fn_get_trace",
+                    f"No trace in text keys: {list(img.text.keys()) if hasattr(img, 'text') else 'no text attr'}",
+                )
+    except Exception as e:
+        log("fn_get_trace", f"Error: {e}")
     return None
 
 
