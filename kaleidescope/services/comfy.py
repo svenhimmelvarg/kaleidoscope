@@ -462,7 +462,20 @@ def invoke_workflow_v2(
         )
         return
 
-    elapsed = (time.time() - start_time) * 1000
+    # Extract precise timing from ComfyUI job API
+    execution_start_time = job_data.get("execution_start_time")
+    execution_end_time = job_data.get("execution_end_time")
+    create_time = job_data.get("create_time")
+
+    if execution_start_time and execution_end_time:
+        elapsed = execution_end_time - execution_start_time
+    else:
+        elapsed = (time.time() - start_time) * 1000
+
+    wait_time_ms = None
+    if execution_start_time and create_time:
+        wait_time_ms = execution_start_time - create_time
+
     outputs = job_data["outputs"]
     logger.info(
         f"ComfyUI v2 job outputs: node_ids={list(outputs.keys())}, filter={config.output_folder_filter}"
@@ -513,6 +526,8 @@ def invoke_workflow_v2(
         path = img_data.pop("_path")
         if os.path.exists(path):
             meta_dict = {"elapsed_ms": elapsed, "parent_id": prompt_id}
+            if wait_time_ms is not None:
+                meta_dict["wait_time_ms"] = wait_time_ms
             if png_workflow and isinstance(png_workflow, dict) and "message" not in png_workflow:
                 meta_dict["workflow"] = json.dumps(png_workflow)
             if trace_data:

@@ -785,7 +785,11 @@ def sink(outputs):
         d1["height"] = doc["resolution"]["content"]["height"]
         d1["created"] = unix_timestamp
         d1["elapsed_ms"] = fn_get_elapsed_ms(data1, {"source_path": source_path})
-        log("sink", f"elapsed_ms for {doc['id']}: {d1['elapsed_ms']}")
+        d1["wait_time_ms"] = fn_get_wait_time_ms(data1, {"source_path": source_path})
+        log(
+            "sink",
+            f"elapsed_ms for {doc['id']}: {d1['elapsed_ms']} wait_time_ms: {d1.get('wait_time_ms')}",
+        )
         d1["wf_hash_id"] = new_hash(d1)
         d1["inputs_hash_id"] = new_hash_inputs(d1)
         d1["parent_id"] = fn_get_parent_id(data1, {"source_path": source_path})
@@ -918,6 +922,51 @@ def fn_get_elapsed_ms(data, ctx):
                 )
     except Exception as e:
         log("fn_get_elapsed_ms", f"Error: {e}")
+    return None
+
+
+def fn_get_wait_time_ms(data, ctx):
+    """Extract wait_time_ms from PNG metadata.
+
+    Reads the 'wait_time_ms' field from PNG text chunks and returns it as an integer.
+
+    Args:
+        data: Unused
+        ctx: Context dict containing 'source_path' key with the PNG file path
+
+    Returns:
+        int or None: wait time in milliseconds, or None if not found
+    """
+    from PIL import Image
+
+    source_path = ctx.get("source_path")
+    if not source_path:
+        log("fn_get_wait_time_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
+        return None
+    if not os.path.exists(source_path):
+        log("fn_get_wait_time_ms", f"File not found: {source_path}")
+        return None
+
+    try:
+        with Image.open(source_path) as img:
+            if hasattr(img, "text") and "wait_time_ms" in img.text:
+                raw_value = img.text["wait_time_ms"]
+                log(
+                    "fn_get_wait_time_ms",
+                    f"Found raw_value: {raw_value} (type: {type(raw_value)})",
+                )
+                if isinstance(raw_value, str):
+                    numeric_value = float(raw_value)
+                else:
+                    numeric_value = float(raw_value)
+                return int(numeric_value)
+            else:
+                log(
+                    "fn_get_wait_time_ms",
+                    f"No wait_time_ms in text keys: {list(img.text.keys()) if hasattr(img, 'text') else 'no text attr'}",
+                )
+    except Exception as e:
+        log("fn_get_wait_time_ms", f"Error: {e}")
     return None
 
 

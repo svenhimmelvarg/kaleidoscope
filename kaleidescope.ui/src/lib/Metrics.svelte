@@ -18,16 +18,38 @@
 
   let yTicks = $derived(validData.map((d) => d.seconds));
 
-  // Extract trace events where elapsed_ms > 3000ms
+  // Transform validData into a flat structure suitable for BarY with a color grouping dimension
+  let barData = $derived(
+    validData.flatMap(d => [
+      {
+        unique_id: `${d._id}_total`,
+        date: d.date,
+        seconds: d.seconds,
+        type: 'Total',
+        color: 'rgba(52, 199, 89, 0.8)'
+      },
+      {
+        unique_id: `${d._id}_traced`,
+        date: d.date,
+        seconds: d.traced_seconds,
+        type: 'Traced',
+        color: 'rgba(0, 122, 255, 0.8)'
+      }
+    ])
+  );
+
+  // Extract all trace events
   let traceData = $derived(
     data
       .filter((d) => Array.isArray(d.trace))
       .flatMap((d) => {
         const docDate = d.created ? new Date(d.created * 1000) : new Date();
+        const docId = d.id || d._id || docDate.getTime().toString();
         return d.trace
-          .filter((t: any) => typeof t.elapsed_ms === 'number' && t.elapsed_ms > 3000)
+          .filter((t: any) => typeof t.elapsed_ms === 'number')
           .map((t: any, idx: number) => ({
             date: docDate,
+            doc_id: docId,
             seconds: t.elapsed_ms / 1000,
             series_id: `${t.class_type}_${t.node_id}`,
             unique_id: `${t.class_type}_${t.node_id}_${docDate.getTime()}_${idx}`,
@@ -35,7 +57,7 @@
             node_id: t.node_id
           }));
       })
-      .sort((a, b) => b.seconds - a.seconds) // Sort descending by elapsed time
+      .sort((a, b) => a.date.getTime() - b.date.getTime()) // Sort chronologically
   );
 
   let traceYTicks = $derived(traceData.map((d) => d.seconds));
@@ -48,7 +70,8 @@
     <div class="metrics-empty">No valid elapsed_ms data to display</div>
   {:else}
     <Plot
-      x={{ label: 'Time', grid: true }}
+      x={{ axis: null, padding: 0.2 }}
+      fx={{ label: 'Time', tickFormat: (d: any) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
       y={{ label: 'Elapsed Time (s)', grid: false, ticks: yTicks, axis: 'right' }}
       height={300}
       marginBottom={50}
@@ -56,39 +79,18 @@
       marginTop={30}
       marginRight={30}
     >
-      <Line 
-        data={validData} 
-        x="date" 
+      {#snippet footer()}
+        <div style="margin-top: 15px; display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 10px;">
+          <ColorLegend />
+        </div>
+      {/snippet}
+      <BarY 
+        data={barData} 
+        x="type" 
+        fx="date"
         y="seconds" 
-        stroke="rgba(52, 199, 89, 0.8)" 
-        strokeWidth={2} 
-      />
-      <Dot 
-        data={validData} 
-        x="date" 
-        y="seconds" 
-        fill="rgba(52, 199, 89, 1)" 
-        stroke="#fff" 
-        strokeWidth={1.5}
-        r={4}
-        title={(d: any) => `Total: ${d.seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
-      />
-      <Line 
-        data={validData} 
-        x="date" 
-        y="traced_seconds" 
-        stroke="rgba(0, 122, 255, 0.8)" 
-        strokeWidth={2} 
-      />
-      <Dot 
-        data={validData} 
-        x="date" 
-        y="traced_seconds" 
-        fill="rgba(0, 122, 255, 1)" 
-        stroke="#fff" 
-        strokeWidth={1.5}
-        r={4}
-        title={(d: any) => `Traced: ${d.traced_seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+        fill="type"
+        title={(d: any) => `${d.type}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
       />
     </Plot>
   {/if}
@@ -98,10 +100,10 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="metrics-container" {onclick}>
   {#if traceData.length === 0}
-    <div class="metrics-empty">No trace events &gt; 3 seconds to display</div>
+    <div class="metrics-empty">No trace events to display</div>
   {:else}
     <Plot
-      x={{ label: 'Node Execution', axis: 'bottom', tickRotate: -45, tickFormat: (d: any) => d.split('_').slice(0, -2).join('_') }}
+      x={{ label: 'Execution Time', axis: 'bottom', tickRotate: -45, tickFormat: (d: any) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
       y={{ label: 'Node Elapsed Time (s)', grid: true, axis: 'left' }}
       height={400}
       marginBottom={100}
@@ -116,10 +118,9 @@
       {/snippet}
       <BarY 
         data={traceData} 
-        x="unique_id" 
+        x="date" 
         y="seconds" 
         fill="series_id"
-        sort={{ x: "y", reverse: true }}
         title={(d: any) => `${d.series_id}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
       />
     </Plot>
