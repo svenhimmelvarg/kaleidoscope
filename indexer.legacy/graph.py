@@ -1096,9 +1096,9 @@ pipe = lambda data, ctx: fn_write(fn_get_res(data, ctx), ctx)
 count = 0
 transforms = [
     ("data.size", (pipe, "resolution")),
-    ("data.png_prompt", (fn_write, "png_prompt.json")),
-    ("data.png_workflow", (fn_write, "png_workflow.json")),
-    ("data.png_prompt", (fn_hash_workflow_json, "workflow_id")),
+    ("data.prompt", (fn_write, "png_prompt.json")),
+    ("data.workflow", (fn_write, "png_workflow.json")),
+    ("data.prompt", (fn_hash_workflow_json, "workflow_id")),
 ]
 # effective_index_name is calculated earlier after args parsing
 # index_name  = "workflowtests"
@@ -1124,7 +1124,7 @@ for r, file_path in get_pngs(
         output = cache_get(r["_id"], "output.json")
     else:
         try:
-            output = transform(r, ignore_errors=["data.png_workflow"])
+            output = transform(r, ignore_errors=["data.workflow", "data.prompt", "data.size"])
             # output = transform(r)
             f_name = cache_write(r["_id"], "output.json", output)
             print(f_name)

@@ -37,7 +37,8 @@ def apply_transform(key, spec, data, ignore_errors=[]):
     (fn, output_key) = spec
 
     datum = deref2(data, key)
-
+    
+    
     if datum is None and key in ignore_errors:
         datum = {"message": "Not Available"}
         # fn = lambda d,ctx :  {"message": "Not Available"}
@@ -260,31 +261,38 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
     observer.start()
     print("Watch List started.")
 
-    pending_files = {} # path -> first_seen_time
+    pending_files = {}  # path -> first_seen_time
     processed_files = set()
 
     try:
         while count < limit:
             # 1. Process anything in the queue
             try:
-                # We use a non-blocking get to not hang forever if empty, 
+                # We use a non-blocking get to not hang forever if empty,
                 # but wait 0.5s so we don't spin CPU too hard
                 f_name = file_queue.get(timeout=0.5)
-                
+
                 if f_name not in processed_files:
                     if f_name not in pending_files:
                         pending_files[f_name] = time.time()
                         print(f"[DEBUG] '{f_name}' added to pending_files (first seen).")
-                    
+
                     try:
                         metadata_result = read_png_metadata(f_name)
                         data = metadata_result.get("data", {})
-                        
+
                         # Fast path: Check if metadata injected by kaleidoscope exists
-                        has_meta = "png_parent_id" in data or "png_elapsed_ms" in data or "info_parent_id" in data or "info_elapsed_ms" in data
-                        
+                        has_meta = (
+                            "png_parent_id" in data
+                            or "png_elapsed_ms" in data
+                            or "info_parent_id" in data
+                            or "info_elapsed_ms" in data
+                        )
+
                         if has_meta:
-                            print(f"[DEBUG] '{f_name}' hit fast-path! Metadata found. Yielding immediately.")
+                            print(
+                                f"[DEBUG] '{f_name}' hit fast-path! Metadata found. Yielding immediately."
+                            )
                             yield (metadata_result, f_name)
                             count += 1
                             processed_files.add(f_name)
@@ -302,17 +310,28 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
                 if current_time - first_seen >= 10.0:
                     to_flush.append(f_name)
                     print(f"[DEBUG] '{f_name}' reached 10s timeout. Adding to flush queue.")
-                    
+
             for f_name in to_flush:
                 if f_name not in processed_files:
                     try:
                         metadata_result = read_png_metadata(f_name)
                         data = metadata_result.get("data", {})
-                        has_meta = "png_parent_id" in data or "png_elapsed_ms" in data or "info_parent_id" in data or "info_elapsed_ms" in data
-                        
-                        meta_status = "WITH kaleidoscope metadata" if has_meta else "WITHOUT kaleidoscope metadata"
-                        print(f"[DEBUG] '{f_name}' being processed by slow-path flush. Yielding {meta_status}.")
-                        
+                        has_meta = (
+                            "png_parent_id" in data
+                            or "png_elapsed_ms" in data
+                            or "info_parent_id" in data
+                            or "info_elapsed_ms" in data
+                        )
+
+                        meta_status = (
+                            "WITH kaleidoscope metadata"
+                            if has_meta
+                            else "WITHOUT kaleidoscope metadata"
+                        )
+                        print(
+                            f"[DEBUG] '{f_name}' being processed by slow-path flush. Yielding {meta_status}."
+                        )
+
                         yield (metadata_result, f_name)
                         count += 1
                         processed_files.add(f_name)
@@ -323,6 +342,7 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
     finally:
         observer.stop()
         observer.join()
+
 
 def get_pngs(start_path, limit=None, skip_count=-1, watch=False):
     if watch:
@@ -337,6 +357,8 @@ def get_all_pngs(start_path, limit=None, skip_count=-1, watch=True):
     for f in walk(start_path, limit):
         if skip_count >= 0:
             skip_count = skip_count - 1
+            continue
+        if not f.lower().endswith(".png"):
             continue
         try:
             yield (read_png_metadata(f), f)

@@ -242,6 +242,10 @@
   let publishStatus = $state({});
 
   async function imagePrompt(doc,i){
+      if (!selectedImageInput) {
+        console.error("Asset:imagePrompt: No image input selected");
+        return;
+      }
       outputs.isLoading = true
       const response = await invokeController.prompt(doc.id,  {
         _id :  selectedImageInput._id,
@@ -343,6 +347,7 @@
 
     longPressTimer = setTimeout(() => {
       isLongPress = true;
+      selectedImageInput = i;
       showInputValues = !showInputValues;
     }, 500); // 500ms for long press
   }
@@ -370,7 +375,6 @@
 
     }else{
         err.message = "Loading ";
-        selectedImageInput = i
 
     }
 
