@@ -51,7 +51,7 @@
             date: docDate,
             doc_id: docId,
             seconds: t.elapsed_ms / 1000,
-            series_id: `${t.class_type}_${t.node_id}`,
+            series_id: `${t.node_id.toString().padStart(6, '0')}_${t.class_type}`,
             unique_id: `${t.class_type}_${t.node_id}_${docDate.getTime()}_${idx}`,
             class_type: t.class_type,
             node_id: t.node_id
