@@ -18,24 +18,21 @@
 
   let yTicks = $derived(validData.map((d) => d.seconds));
 
+  let totalComputeMinutes = $derived(
+    validData.reduce((sum, d) => sum + (typeof d.elapsed_ms === 'number' ? d.elapsed_ms : 0), 0) / (1000 * 60)
+  );
+
   // Transform validData into a flat structure suitable for BarY with a color grouping dimension
   let barData = $derived(
-    validData.flatMap(d => [
+    validData.map(d => (
       {
         unique_id: `${d._id}_total`,
         date: d.date,
         seconds: d.seconds,
         type: 'Total',
         color: 'rgba(52, 199, 89, 0.8)'
-      },
-      {
-        unique_id: `${d._id}_traced`,
-        date: d.date,
-        seconds: d.traced_seconds,
-        type: 'Traced',
-        color: 'rgba(0, 122, 255, 0.8)'
       }
-    ])
+    ))
   );
 
   // Extract all trace events
@@ -65,35 +62,46 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="metrics-container" {onclick}>
-  {#if validData.length === 0}
-    <div class="metrics-empty">No valid elapsed_ms data to display</div>
-  {:else}
-    <Plot
-      x={{ axis: null, padding: 0.2 }}
-      fx={{ label: 'Time', tickFormat: (d: any) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-      y={{ label: 'Elapsed Time (s)', grid: false, ticks: yTicks, axis: 'right' }}
-      height={300}
-      marginBottom={50}
-      marginLeft={80}
-      marginTop={30}
-      marginRight={30}
-    >
-      {#snippet footer()}
-        <div style="margin-top: 15px; display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 10px;">
-          <ColorLegend />
-        </div>
-      {/snippet}
-      <BarY 
-        data={barData} 
-        x="type" 
-        fx="date"
-        y="seconds" 
-        fill="type"
-        title={(d: any) => `${d.type}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
-      />
-    </Plot>
-  {/if}
+<div class="metrics-row" style="display: flex; gap: 1rem; align-items: stretch; margin-top: 1rem;">
+  <div class="metrics-container" style="flex: 3; margin-top: 0;" {onclick}>
+    {#if validData.length === 0}
+      <div class="metrics-empty">No valid elapsed_ms data to display</div>
+    {:else}
+      <Plot
+        x={{ axis: null, padding: 0.2 }}
+        fx={{ label: 'Time', tickFormat: (d: any) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+        y={{ label: 'Elapsed Time (s)', grid: false, ticks: yTicks, axis: 'right' }}
+        height={300}
+        marginBottom={50}
+        marginLeft={80}
+        marginTop={30}
+        marginRight={30}
+      >
+        {#snippet footer()}
+          <div style="margin-top: 15px; display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 10px;">
+            <ColorLegend />
+          </div>
+        {/snippet}
+        <BarY 
+          data={barData} 
+          x="type" 
+          fx="date"
+          y="seconds" 
+          fill="type"
+          title={(d: any) => `${d.type}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`}
+        />
+      </Plot>
+    {/if}
+  </div>
+
+  <div class="metrics-container" style="flex: 1; margin-top: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;" {onclick}>
+    <div style="font-size: 3.5rem; font-weight: 700; color: rgba(52, 199, 89, 0.9);">
+      {totalComputeMinutes.toFixed(2)}
+    </div>
+    <div style="font-size: 1rem; color: rgba(60, 60, 67, 0.6); text-align: center; margin-top: 0.5rem; font-weight: 500;">
+      Total Compute (Mins)
+    </div>
+  </div>
 </div>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -103,7 +111,7 @@
     <div class="metrics-empty">No trace events to display</div>
   {:else}
     <Plot
-      x={{ label: 'Execution Time', axis: 'bottom', tickRotate: -45, tickFormat: (d: any) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+      x={{ label: 'Execution Time', axis: 'bottom', tickRotate: -45, tickFormat: (d: any) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
       y={{ label: 'Node Elapsed Time (s)', grid: true, axis: 'left' }}
       height={400}
       marginBottom={100}
@@ -121,7 +129,7 @@
         x="date" 
         y="seconds" 
         fill="series_id"
-        title={(d: any) => `${d.series_id}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+        title={(d: any) => `${d.series_id}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`}
       />
     </Plot>
   {/if}

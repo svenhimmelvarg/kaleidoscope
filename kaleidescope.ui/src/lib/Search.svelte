@@ -248,6 +248,19 @@
     )
   )
   
+  let hasDateFilter = $derived(
+    searchState.filters.some((f: any) => 
+      ['dd', 'mm', 'yy', 'week', 'weekday', 'dayOfWeek', 'thisweek_dayOfWeek', 'time_bucket'].includes(f.attribute) || 
+      (f.expression && (
+        f.expression.includes('dd') || 
+        f.expression.includes('mm') || 
+        f.expression.includes('yy') || 
+        f.expression.includes('week') || 
+        f.expression.includes('dayOfWeek')
+      ))
+    )
+  )
+  
   // Initialize sortable attributes for the index
   async function initializeSortableAttributes() {
     try {
@@ -316,7 +329,7 @@
         {:else}
         <!-- {JSON.stringify(searchState)} -->
         <SearchResultGrid {results} {isDetailOn} onUpdate={addFilter} onSelect={() =>  hideElements = !hideElements  }/>
-        {#if hasWorkflowIdFilter}
+        {#if hasWorkflowIdFilter || hasDateFilter}
           <div style="text-align: center; margin-top: 1rem;">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
