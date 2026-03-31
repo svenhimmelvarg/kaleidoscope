@@ -220,9 +220,9 @@
     const ret = await mClient.index(indexName).search("", {
       filter: `yy = ${yy} AND mm = ${mm} AND dd = ${dd}`,
       sort: ['created:desc'],
-      limit: 50
+      limit: 100
     });
-    return ret.hits;
+    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 50);
   }
 
   async function getUpvotedOutputs(doc) {

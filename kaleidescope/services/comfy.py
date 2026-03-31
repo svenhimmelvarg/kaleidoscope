@@ -6,6 +6,7 @@ import shutil
 import websocket
 import json
 import uuid
+import math
 from typing import Dict, Any, List, Optional, Tuple
 from kaleidescope.config import Config
 from convex import ConvexClient
@@ -109,8 +110,21 @@ def process_virtual_uri(client: ConvexClient, value: str, config: Config) -> str
     return value
 
 
+def clean_float_values(obj: Any) -> Any:
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: clean_float_values(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_float_values(v) for v in obj]
+    return obj
+
+
 def queue_prompt(comfy_base_url: str, prompt: Dict[str, Any], client_id: str) -> Optional[str]:
-    p = {"prompt": prompt, "client_id": client_id}
+    cleaned_prompt = clean_float_values(prompt)
+    p = {"prompt": cleaned_prompt, "client_id": client_id}
     try:
         res = requests.post(f"{comfy_base_url}/prompt", json=p)
         res.raise_for_status()
