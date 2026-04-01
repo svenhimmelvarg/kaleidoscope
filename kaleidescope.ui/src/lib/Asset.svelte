@@ -240,6 +240,7 @@
   let notificationIds = $state([])
   let currentVote = $state(0);
   let publishStatus = $state({});
+  let isPlayingVideo = $state(false);
 
   async function imagePrompt(doc,i){
       if (!selectedImageInput) {
@@ -589,6 +590,11 @@
   }
 
   $effect(() => {
+    let _id = page.id;
+    isPlayingVideo = false;
+  });
+
+  $effect(() => {
     if (assetContainer) {
       console.log('[KeyboardNav] Focusing asset container')
       assetContainer.focus()
@@ -622,23 +628,34 @@
   {#await getDocument(page.id)}
     <div class="asset__loading">Loading asset...</div>
   {:then doc}
+    {@const isVideo = doc.type === 'video' || doc.content_type?.includes('video') || doc.image_url?.endsWith('.mp4')}
 
     <div class="asset__container">
       <!-- Pinterest style image cell -->
        {#if !minimal}<div class="generated-images-header">Asset</div>{/if}
       <div class="asset__image-container">
-        <img
-          class="asset__image"
-          src={(doc.type === 'video' || doc.content_type?.includes('video') || doc.image_url?.endsWith('.mp4')) ? `/images/thumbnails/${doc.id}.jpg` : fixImageUrl(doc.image_url, doc.source)}
-          alt="Generated image"
-          onpointerdown={(e) => handleMainImageStartPress(e)}
-          onpointerup={(e) => handleMainImageEndPress(e)}
-          onpointercancel={(e) => handleMainImageCancelPress()}
-          onpointerleave={(e) => handleMainImageCancelPress()}
-          style="cursor: pointer;"
-          title="Click to view, long press for settings"
-        />
-
+        {#if isVideo && isPlayingVideo}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <video
+            class="asset__image"
+            src={fixImageUrl(doc.image_url, doc.source)}
+            controls
+            autoplay
+            style="width: 100%; object-fit: contain; border-radius: 16px;"
+          ></video>
+        {:else}
+          <img
+            class="asset__image"
+            src={isVideo ? `/images/thumbnails/${doc.id}.jpg` : fixImageUrl(doc.image_url, doc.source)}
+            alt="Generated image"
+            onpointerdown={(e) => handleMainImageStartPress(e)}
+            onpointerup={(e) => handleMainImageEndPress(e)}
+            onpointercancel={(e) => handleMainImageCancelPress()}
+            onpointerleave={(e) => handleMainImageCancelPress()}
+            style="cursor: pointer;"
+            title="Click to view, long press for settings"
+          />
+        {/if}
       </div>
       <div class="asset__settings-toggle"  title="Settings">
         {#if (doc?.inputs != undefined) && doc.inputs.filter((el) => el?.type.includes("res.aspectratio")).length > 0  }
@@ -725,6 +742,23 @@
           </div>
           {/if}
         <div class="asset__actions-container">
+          {#if isVideo}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <svg
+            class="asset__settings-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            xmlns="http://www.w3.org/2000/svg"
+            onclick={(e) => { e.stopPropagation(); isPlayingVideo = true; }}
+            style="cursor: pointer;"
+            title="Play Video"
+          >
+            <circle cx="12" cy="12" r="11"></circle>
+            <polygon points="10 8 16 12 10 16 10 8"></polygon>
+          </svg>
+          {/if}
           <svg
             class="asset__settings-icon"
             class:vote-up-active={currentVote === 1}
