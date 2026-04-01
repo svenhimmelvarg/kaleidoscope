@@ -299,11 +299,27 @@ def fn_create_meilisearch_doc(data, ctx):
 
         return do
 
+    def fn_extract_power_loras(value, ctx):
+        loras = []
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if k.startswith("lora_") and isinstance(v, dict):
+                    if "lora" in v and isinstance(v["lora"], str) and v["lora"]:
+                        if v.get("on", True):
+                            loras.append(v["lora"])
+        return loras
+
     # textbox_pattern = "(\w*|\|)Text\w*.inputs.(text|value)"
     # textbox_pattern = r'[A-Za-z|0-9]+.inputs.(text|value)'
     # textbox_pattern = r'[A-Za-z|0-9]*Text[A-Za-z|0-9]*.inputs.(text|value)'
     textbox_pattern = r"[A-Za-z|0-9]*Text[A-Za-z|0-9]*.inputs.(text|value|\w*prompt\w*)"
     matchers = [
+        {
+            "ref": r"Power_Lora_Loader.*\.inputs",
+            "type": list,
+            "output_field": "loras",
+            "output_fn": fn_extract_power_loras,
+        },
         {
             "ref": "TextBox1.inputs.text1",
             "type": list,
@@ -422,17 +438,22 @@ def fn_create_meilisearch_doc(data, ctx):
 
         if field not in d:
             if m["type"] == list:
-                d[field] = [v]
+                if isinstance(v, list):
+                    d[field] = v.copy()
+                else:
+                    d[field] = [v]
             else:
                 d[field] = v
         else:
             if m["type"] == list:
-                if type(v) is dict:
-                    d[field].append(v)
-                elif v.strip() != "" and v not in d[field]:
-                    d[field].append(v)
+                items_to_add = v if isinstance(v, list) else [v]
+                for item in items_to_add:
+                    if type(item) is dict:
+                        d[field].append(item)
+                    elif isinstance(item, str) and item.strip() != "" and item not in d[field]:
+                        d[field].append(item)
             else:
-                d[field] = ",".join(d[field], v)
+                d[field] = ",".join([str(d[field]), str(v)])
 
         return d
 

@@ -926,33 +926,33 @@
              <div class="asset__text-inputs">
                {#each doc.text as text}
                  <div class="asset__text-input">
-                   {#if text._id && text.value.length > 0 }
-                     <!-- <div class="asset__text-input-label">{text._id}:</div> -->
+                  {#if typeof text === 'object' && text !== null }
+                    <!-- <div class="asset__text-input-label">{text._id}:</div> -->
+                   <div
+                     class="asset__text-input-value editable-text"
+                     class:minified-view={minimal}
+                     contenteditable="true"
+                     onkeydown={async (e) => {
+                          const nId = await handleTextUpdate(e, text, doc.id);
+                          if (nId!=null){
+                            outputs.notificationIds = [...outputs.notificationIds,nId]
+                          }
+
+                        } }
+                    >{text.value}</div>
+                  {:else}
                     <div
                       class="asset__text-input-value editable-text"
                       class:minified-view={minimal}
                       contenteditable="true"
-                      onkeydown={async (e) => {
-                           const nId = await handleTextUpdate(e, text, doc.id);
-                           if (nId!=null){
-                             outputs.notificationIds = [...outputs.notificationIds,nId]
-                           }
-
-                         } }
-                     >{text.value}</div>
-                   {:else}
-                     <div
-                       class="asset__text-input-value editable-text"
-                       class:minified-view={minimal}
-                       contenteditable="true"
-                       onkeydown={ async (e) => {
-                           const nId = await handleTextUpdate(e, text, doc.id);
-                           if (nId!=null){
-                             outputs.notificationIds = [...outputs.notificationIds,nId]
-                           }
-                         }}
-                     >{text}</div>
-                   {/if}
+                      onkeydown={ async (e) => {
+                          const nId = await handleTextUpdate(e, text, doc.id);
+                          if (nId!=null){
+                            outputs.notificationIds = [...outputs.notificationIds,nId]
+                          }
+                        }}
+                    >{text}</div>
+                  {/if}
                  </div>
                {/each}
              </div>
