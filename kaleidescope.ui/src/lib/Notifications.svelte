@@ -141,11 +141,13 @@ console.log("Notifications:query",query?.isLoading, query?.error, query?.data )
                                           {#if filteredRelated.length > 0}
                                             <BentoBox notification={n} relatedNotifications={filteredRelated} onclick={click}/>
                                           {:else}
-                                            <img src={img.uri} alt="Generated image" class="generated-image"  onclick={() =>  click(img)}/>
+                                            {@const isVideo = img.uri?.endsWith('.mp4')}
+                                            <img src={isVideo ? `/images/thumbnails/${img._id}.jpg` : img.uri} alt="Generated image" class="generated-image"  onclick={() =>  click(img)}/>
                                           {/if}
                                       {/await}
                                   {:else}
-                                    <img src={img.uri} alt="Generated image" class="generated-image"  onclick={() =>  click(img)}/>
+                                    {@const isVideo = img.uri?.endsWith('.mp4')}
+                                    <img src={isVideo ? `/images/thumbnails/${img._id}.jpg` : img.uri} alt="Generated image" class="generated-image"  onclick={() =>  click(img)}/>
                                   {/if}
                               {/if}
                           {/await}
