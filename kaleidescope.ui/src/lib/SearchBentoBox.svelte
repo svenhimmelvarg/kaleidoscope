@@ -18,10 +18,11 @@
 </script>
 
 {#if mainResult}
+  {@const mainIsVideo = mainResult.type === 'video' || mainResult.content_type?.includes('video') || mainResult.image_url?.endsWith('.mp4')}
   <div class="search-bentobox" onclick={handleClick}>
     <div class="search-bentobox__main">
       <img 
-        src={fixImageUrl(mainResult.image_url, mainResult.source)} 
+        src={mainIsVideo ? `/images/thumbnails/${mainResult.id}.jpg` : fixImageUrl(mainResult.image_url, mainResult.source)} 
         alt="Main result" 
         class="search-bentobox__main-image" 
       />
@@ -29,9 +30,10 @@
     {#if relatedResults.length > 0}
       <div class="search-bentobox__related">
         {#each relatedResults as related}
+          {@const relatedIsVideo = related.type === 'video' || related.content_type?.includes('video') || related.image_url?.endsWith('.mp4')}
           <div class="search-bentobox__related-item" onclick={(e) => handleRelatedClick(e, related)}>
             <img 
-              src={fixImageUrl(related.image_url, related.source)} 
+              src={relatedIsVideo ? `/images/thumbnails/${related.id}.jpg` : fixImageUrl(related.image_url, related.source)} 
               alt="Related result" 
               class="search-bentobox__related-image" 
             />

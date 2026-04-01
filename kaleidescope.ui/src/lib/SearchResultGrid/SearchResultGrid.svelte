@@ -443,6 +443,7 @@
       {:else}
         <!-- Render normal grid items -->
         {#each groupItems as r}
+          {@const isVideo = r.type === 'video' || r.content_type?.includes('video') || r.image_url?.endsWith('.mp4')}
           {#if !(showSingle.display && showSingle.id === r.id)}
             <div class="search-results__grid-item">
               <div class="search-results__grid-item__image">
@@ -452,7 +453,7 @@
                     grabFocus(e);
                     onSelect(r);
                   }}
-                  src={fixImageUrl(r.image_url, r.source)}
+                  src={isVideo ? `/images/thumbnails/${r.id}.jpg` : fixImageUrl(r.image_url, r.source)}
                   alt="Generated image"
                 />
               </div>

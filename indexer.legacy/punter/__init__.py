@@ -37,8 +37,7 @@ def apply_transform(key, spec, data, ignore_errors=[]):
     (fn, output_key) = spec
 
     datum = deref2(data, key)
-    
-    
+
     if datum is None and key in ignore_errors:
         datum = {"message": "Not Available"}
         # fn = lambda d,ctx :  {"message": "Not Available"}
@@ -209,24 +208,24 @@ def _(**kwargs):
     return kwargs
 
 
-class PngHandler(FileSystemEventHandler):
+class MediaHandler(FileSystemEventHandler):
     def __init__(self, file_queue):
         self.file_queue = file_queue
 
     def on_created(self, event):
-        if not event.is_directory and event.src_path.lower().endswith(".png"):
+        if not event.is_directory and event.src_path.lower().endswith((".png", ".mp4")):
             self.file_queue.put(event.src_path)
 
     def on_modified(self, event):
-        if not event.is_directory and event.src_path.lower().endswith(".png"):
+        if not event.is_directory and event.src_path.lower().endswith((".png", ".mp4")):
             self.file_queue.put(event.src_path)
 
     def on_moved(self, event):
-        if not event.is_directory and event.dest_path.lower().endswith(".png"):
+        if not event.is_directory and event.dest_path.lower().endswith((".png", ".mp4")):
             self.file_queue.put(event.dest_path)
 
 
-def watch_pngs(watch_path, limit=100, skip_count=-1):
+def watch_media(watch_path, limit=100, skip_count=-1):
     count = 0
     path = watch_path
     if "*" in path or "?" in path or "[" in path:
@@ -241,7 +240,7 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
         print(f"  * {path}")
 
     file_queue = queue.Queue()
-    event_handler = PngHandler(file_queue)
+    event_handler = MediaHandler(file_queue)
 
     try:
         observer = Observer()
@@ -278,7 +277,7 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
                         print(f"[DEBUG] '{f_name}' added to pending_files (first seen).")
 
                     try:
-                        metadata_result = read_png_metadata(f_name)
+                        metadata_result = read_media_metadata(f_name)
                         data = metadata_result.get("data", {})
 
                         # Fast path: Check if metadata injected by kaleidoscope exists
@@ -314,7 +313,7 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
             for f_name in to_flush:
                 if f_name not in processed_files:
                     try:
-                        metadata_result = read_png_metadata(f_name)
+                        metadata_result = read_media_metadata(f_name)
                         data = metadata_result.get("data", {})
                         has_meta = (
                             "png_parent_id" in data
@@ -344,13 +343,13 @@ def watch_pngs(watch_path, limit=100, skip_count=-1):
         observer.join()
 
 
-def get_pngs(start_path, limit=None, skip_count=-1, watch=False):
+def get_media(start_path, limit=None, skip_count=-1, watch=False):
     if watch:
-        return watch_pngs(start_path, limit=limit, skip_count=skip_count)
-    return get_all_pngs(start_path, limit=limit, skip_count=-1, watch=True)
+        return watch_media(start_path, limit=limit, skip_count=skip_count)
+    return get_all_media(start_path, limit=limit, skip_count=-1, watch=True)
 
 
-def get_all_pngs(start_path, limit=None, skip_count=-1, watch=True):
+def get_all_media(start_path, limit=None, skip_count=-1, watch=True):
     count = 0
     if skip_count is None:
         skip_count = -1
@@ -358,10 +357,10 @@ def get_all_pngs(start_path, limit=None, skip_count=-1, watch=True):
         if skip_count >= 0:
             skip_count = skip_count - 1
             continue
-        if not f.lower().endswith(".png"):
+        if not f.lower().endswith((".png", ".mp4")):
             continue
         try:
-            yield (read_png_metadata(f), f)
+            yield (read_media_metadata(f), f)
             count = count + 1
         except Exception as e:
             print(f"{e} : {f} : {limit}")
@@ -435,23 +434,70 @@ def read_json_folder(folder):
     return results
 
 
-def read_png_metadata(file_path):
-    """
-    Read PNG metadata from a file and return it in a structured format.
+def read_mp4_metadata(file_path):
+    import os
+    import subprocess
+    import json
 
-    Args:
-        file_path (str): Path to the PNG file
-        limit (int, optional): Maximum number of metadata entries to return
+    file_id = hash_file(file_path)
+    metadata = {
+        "filename": os.path.basename(file_path),
+        "format": "mp4",
+    }
 
-    Returns:
-        dict: Dictionary with "_id" (file hash) and "data" (metadata entries)
+    try:
+        # Use ffprobe to extract format tags
+        cmd = [
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            file_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        probe_data = json.loads(result.stdout)
+
+        tags = probe_data.get("format", {}).get("tags", {})
+
+        # Add tags mapping them similarly to PNG text chunks
+        for key, value in tags.items():
+            metadata[f"png_{key.lower()}"] = value
+
+        # Add basic info
+        if "streams" in probe_data:
+            for stream in probe_data["streams"]:
+                if stream.get("codec_type") == "video":
+                    metadata["size"] = (stream.get("width", 0), stream.get("height", 0))
+                    break
+
+    except Exception as e:
+        metadata["error"] = str(e)
+
+    metadata_id = hash_json_data(metadata)
+    metadata["_id"] = f"{file_id}_{metadata_id}"
+
+    return {
+        "_id": file_id,
+        "data": metadata,
+    }
+
+
+def read_media_metadata(file_path):
     """
+    Read media metadata from a file (PNG or MP4) and return it in a structured format.
+    """
+    if str(file_path).lower().endswith(".mp4"):
+        return read_mp4_metadata(file_path)
+
     from PIL import Image
     from PIL.ExifTags import TAGS
     import os
 
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"PNG file not found: {file_path}")
+        raise FileNotFoundError(f"Media file not found: {file_path}")
 
     # Get file hash as ID
     file_id = hash_file(file_path)

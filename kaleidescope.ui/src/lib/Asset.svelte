@@ -604,8 +604,9 @@
   <div style="display: flex; gap: 0.25rem; overflow-x: auto; padding: 0.5rem; background: #fffbf5; border-radius: 12px; margin-bottom: 0.5rem;">
     {#each page.history as histId}
       {#if docCache[histId]}
+        {@const isVideo = docCache[histId].type === 'video' || docCache[histId].content_type?.includes('video') || docCache[histId].image_url?.endsWith('.mp4')}
         <img 
-          src={fixImageUrl(docCache[histId].image_url, docCache[histId].source)} 
+          src={isVideo ? `/images/thumbnails/${histId}.jpg` : fixImageUrl(docCache[histId].image_url, docCache[histId].source)} 
           alt="History item" 
           style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; cursor: pointer;"
           onclick={() => page.updateId(histId)}
@@ -628,7 +629,7 @@
       <div class="asset__image-container">
         <img
           class="asset__image"
-          src={fixImageUrl(doc.image_url, doc.source)}
+          src={(doc.type === 'video' || doc.content_type?.includes('video') || doc.image_url?.endsWith('.mp4')) ? `/images/thumbnails/${doc.id}.jpg` : fixImageUrl(doc.image_url, doc.source)}
           alt="Generated image"
           onpointerdown={(e) => handleMainImageStartPress(e)}
           onpointerup={(e) => handleMainImageEndPress(e)}

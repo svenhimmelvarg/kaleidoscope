@@ -52,11 +52,41 @@ def create_app() -> FastAPI:
     if (STATIC_DIR / "assets").exists():
         app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-    # Mount local thumbnails specifically (takes precedence over ComfyUI images)
+    # Serve thumbnails dynamically from local and legacy directories
     local_thumbnails = STATIC_DIR / "images" / "thumbnails"
-    if local_thumbnails.exists():
-        app.mount("/images/thumbnails", StaticFiles(directory=local_thumbnails), name="thumbnails")
-        logger.info(f"Serving local thumbnails from {local_thumbnails}")
+    legacy_thumbnails = (
+        Path(__file__).parent.parent / "indexer.legacy" / "public" / "images" / "thumbnails"
+    )
+
+    @app.get("/images/thumbnails/{file_name:path}")
+    async def serve_thumbnails(file_name: str):
+        from fastapi import HTTPException
+
+        # Check local thumbnails first
+        if local_thumbnails.exists():
+            local_path = local_thumbnails / file_name
+            try:
+                resolved_local = local_path.resolve()
+                resolved_base = local_thumbnails.resolve()
+                resolved_local.relative_to(resolved_base)
+                if resolved_local.exists() and resolved_local.is_file():
+                    return FileResponse(resolved_local)
+            except ValueError:
+                pass
+
+        # Check legacy thumbnails
+        if legacy_thumbnails.exists():
+            legacy_path = legacy_thumbnails / file_name
+            try:
+                resolved_legacy = legacy_path.resolve()
+                resolved_base = legacy_thumbnails.resolve()
+                resolved_legacy.relative_to(resolved_base)
+                if resolved_legacy.exists() and resolved_legacy.is_file():
+                    return FileResponse(resolved_legacy)
+            except ValueError:
+                pass
+
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
 
     # Serve images dynamically to handle missing source names gracefully
     if config.comfyui_instance_base_path:

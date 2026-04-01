@@ -661,6 +661,26 @@ def generate_thumbnail(source_path: str, thumbnail_path: str) -> bool:
         # Ensure thumbnail directory exists
         os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
 
+        if str(source_path).lower().endswith(".mp4"):
+            import subprocess
+
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                source_path,
+                "-vframes",
+                "1",
+                "-vf",
+                f"scale={THUMBNAIL_MAX_WIDTH}:-1",
+                "-q:v",
+                "2",
+                thumbnail_path,
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            print(f"[THUMBNAIL] Generated video thumbnail: {thumbnail_path}")
+            return True
+
         # Open and process the image
         with Image.open(source_path) as img:
             # Convert to RGB if necessary (JPG doesn't support transparency)
@@ -762,6 +782,8 @@ def sink(outputs):
             "score",
             "parent_id",
             "created",
+            "type",
+            "content_type",
         ],
     )
     print(" * Write to search index")
@@ -804,6 +826,11 @@ def sink(outputs):
         d1["orientation"] = doc["resolution"]["content"]["orientation"]
         d1["width"] = doc["resolution"]["content"]["width"]
         d1["height"] = doc["resolution"]["content"]["height"]
+        d1["type"] = "video" if doc["source_path"].lower().endswith(".mp4") else "image"
+        d1["content_type"] = (
+            "video/mp4" if doc["source_path"].lower().endswith(".mp4") else "image/png"
+        )
+
         d1["created"] = unix_timestamp
         d1["elapsed_ms"] = fn_get_elapsed_ms(data1, {"source_path": source_path})
         d1["wait_time_ms"] = fn_get_wait_time_ms(data1, {"source_path": source_path})
@@ -916,6 +943,8 @@ def fn_get_elapsed_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
+    if source_path and source_path.lower().endswith(".mp4"):
+        return None
     if not source_path:
         log("fn_get_elapsed_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -961,6 +990,8 @@ def fn_get_wait_time_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
+    if source_path and source_path.lower().endswith(".mp4"):
+        return None
     if not source_path:
         log("fn_get_wait_time_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -1008,6 +1039,8 @@ def fn_get_parent_id(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
+    if source_path and source_path.lower().endswith(".mp4"):
+        return None
     if not source_path:
         log("fn_get_parent_id", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -1046,6 +1079,8 @@ def fn_get_traced_elapsed_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
+    if source_path and source_path.lower().endswith(".mp4"):
+        return None
     if not source_path:
         log("fn_get_traced_elapsed_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -1089,6 +1124,8 @@ def fn_get_trace(data, ctx):
     import json
 
     source_path = ctx.get("source_path")
+    if source_path and source_path.lower().endswith(".mp4"):
+        return None
     if not source_path:
         log("fn_get_trace", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -1135,7 +1172,7 @@ print(args)
 hard_limit = 100000  # args.limit
 count = 0
 should_watch = True if args.watch == "true" else False
-for r, file_path in get_pngs(
+for r, file_path in get_media(
     os.path.abspath(args.input), limit=hard_limit, watch=should_watch
 ):  # records:
     if args.skip_cache_hits == "true":
