@@ -15,7 +15,43 @@ logger = logging.getLogger(__name__)
 
 import tempfile
 
+
+def update_mp4_metadata(mp4_path: str, metadata_dict: Dict[str, Any]) -> None:
+    import subprocess
+    import tempfile
+    from kaleidescope.config import load_config
+
+    try:
+        config = load_config()
+        data_dir = config.data_dir
+    except Exception:
+        data_dir = os.environ.get("DATA_DIR", "./data")
+
+    tmp_dir = os.path.join(data_dir, "tmp")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    filename = os.path.basename(mp4_path)
+    tmp_path = os.path.join(tmp_dir, f"{filename}.tmp.mp4")
+
+    cmd = ["ffmpeg", "-y", "-i", mp4_path, "-movflags", "use_metadata_tags"]
+    for key, value in metadata_dict.items():
+        str_value = str(value) if not isinstance(value, str) else value
+        cmd.extend(["-metadata", f"{key}={str_value}"])
+    cmd.extend(["-codec", "copy", tmp_path])
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        os.replace(tmp_path, mp4_path)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error updating MP4 metadata for {mp4_path}: {e.stderr.decode('utf-8')}")
+    except Exception as e:
+        logger.error(f"Error updating MP4 metadata for {mp4_path}: {e}")
+
+
 def update_metadata(png_path: str, metadata_dict: Dict[str, Any]) -> None:
+    if png_path.lower().endswith(".mp4"):
+        return update_mp4_metadata(png_path, metadata_dict)
+
     try:
         with Image.open(png_path) as img:
             pnginfo = PngInfo()
@@ -31,25 +67,25 @@ def update_metadata(png_path: str, metadata_dict: Dict[str, Any]) -> None:
             # This prevents race conditions with watchdog file scanners
             import os
             from kaleidescope.config import load_config
-            
+
             try:
                 config = load_config()
                 data_dir = config.data_dir
             except Exception:
                 data_dir = os.environ.get("DATA_DIR", "./data")
-                
+
             tmp_dir = os.path.join(data_dir, "tmp")
             os.makedirs(tmp_dir, exist_ok=True)
-            
+
             filename = os.path.basename(png_path)
             tmp_path = os.path.join(tmp_dir, f"{filename}.tmp")
-            
+
             # Save to temporary file
             img.save(tmp_path, format="PNG", pnginfo=pnginfo)
-            
+
         # Atomic replace
         os.replace(tmp_path, png_path)
-        
+
     except Exception as e:
         logger.error(f"Error updating metadata for {png_path}: {e}")
 

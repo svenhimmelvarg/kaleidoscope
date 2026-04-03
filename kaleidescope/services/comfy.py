@@ -465,13 +465,16 @@ def invoke_workflow_v2(
         )
         return
 
-    if "outputs" not in job_data:
+    if "outputs" not in job_data and "preview_output" not in job_data:
         update_notification(
             convex_client,
             notification_id,
             {
                 "status": "ERROR",
-                "payload": {"input": body, "output": {"error": "No outputs in job_data"}},
+                "payload": {
+                    "input": body,
+                    "output": {"error": "No outputs or preview_output in job_data"},
+                },
             },
         )
         return
@@ -490,7 +493,7 @@ def invoke_workflow_v2(
     if execution_start_time and create_time:
         wait_time_ms = execution_start_time - create_time
 
-    outputs = job_data["outputs"]
+    outputs = job_data.get("outputs", {})
     logger.info(
         f"ComfyUI v2 job outputs: node_ids={list(outputs.keys())}, filter={config.output_folder_filter}"
     )
@@ -498,13 +501,20 @@ def invoke_workflow_v2(
     image_paths = []
     response_images = []
 
+    # Process traditional outputs
     for node_id, output_data in outputs.items():
-        if "images" not in output_data:
-            logger.debug(f"Node {node_id}: no images key in output")
+        media_items = []
+        if "images" in output_data:
+            media_items.extend(output_data["images"])
+        if "gifs" in output_data:
+            media_items.extend(output_data["gifs"])
+
+        if not media_items:
+            logger.debug(f"Node {node_id}: no images or gifs key in output")
             continue
 
-        logger.info(f"Node {node_id}: found {len(output_data['images'])} images")
-        for img in output_data["images"]:
+        logger.info(f"Node {node_id}: found {len(media_items)} media items")
+        for img in media_items:
             subfolder = img.get("subfolder", "")
             filename = img.get("filename", "")
             if config.output_folder_filter and subfolder.find(config.output_folder_filter) < 0:
@@ -513,7 +523,7 @@ def invoke_workflow_v2(
                 )
                 continue
 
-            logger.info(f"Including image: subfolder='{subfolder}', filename='{filename}'")
+            logger.info(f"Including media: subfolder='{subfolder}', filename='{filename}'")
 
             full_path = os.path.join(
                 config.comfyui_instance_base_path,
@@ -522,12 +532,38 @@ def invoke_workflow_v2(
                 filename,
             )
             full_path = os.path.abspath(full_path)
-            image_paths.append(full_path)
 
-            instance_name = os.path.basename(config.comfyui_instance_base_path.rstrip("/\\"))
-            uri = f"/images/{instance_name}/output/{subfolder}/{filename}"
+            # Avoid duplicates if it was also in preview_output
+            if full_path not in image_paths:
+                image_paths.append(full_path)
 
-            response_images.append({"uri": uri, "_path": full_path, "elapsed_ms": elapsed})
+                instance_name = os.path.basename(config.comfyui_instance_base_path.rstrip("/\\"))
+                uri = f"/images/{instance_name}/output/{subfolder}/{filename}"
+
+                response_images.append({"uri": uri, "_path": full_path, "elapsed_ms": elapsed})
+
+    # Process preview_output (often used for videos/gifs in v2 API)
+    preview_output = job_data.get("preview_output")
+    if preview_output:
+        subfolder = preview_output.get("subfolder", "")
+        filename = preview_output.get("filename", "")
+        if not (config.output_folder_filter and subfolder.find(config.output_folder_filter) < 0):
+            logger.info(
+                f"Including preview_output media: subfolder='{subfolder}', filename='{filename}'"
+            )
+            full_path = os.path.join(
+                config.comfyui_instance_base_path,
+                "output",
+                subfolder,
+                filename,
+            )
+            full_path = os.path.abspath(full_path)
+
+            if full_path not in image_paths:
+                image_paths.append(full_path)
+                instance_name = os.path.basename(config.comfyui_instance_base_path.rstrip("/\\"))
+                uri = f"/images/{instance_name}/output/{subfolder}/{filename}"
+                response_images.append({"uri": uri, "_path": full_path, "elapsed_ms": elapsed})
 
     all_found, missing = wait_for_files(image_paths)
     if not all_found:
