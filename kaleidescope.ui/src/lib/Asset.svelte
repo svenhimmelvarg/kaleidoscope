@@ -860,7 +860,9 @@
                {#each doc.inputs as i }
                  <!-- <div>{JSON.stringify(i,null,2)}  {i.type=="image"}</div> -->
                  {#if  i?.type.trim() == "image"}
-                   {@const match = (i.value || '').match(/releases?\/([^/]+)\.png$/)}
+                   {@const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release'}
+                   {@const regex = new RegExp(`${releaseFolder}s?\\/([a-f0-9]{32,64})\\.(png|mp4|jpg|jpeg|webp)$`, 'i')}
+                   {@const match = (i.value || '').match(regex)}
                    <div class="input-image-wrapper">
                      <!-- <div>{i.value}</div> -->
                      <img src="/images/{doc.source}/input/{i.value}"
@@ -879,12 +881,14 @@
                            style="cursor: pointer; border-radius:8px;"
                           title="Click to upload new image, long press to toggle input values" />
                      {#if match}
-                       <div 
-                         class="open-asset-btn"
-                         onpointerdown={(e) => e.stopPropagation()}
-                         onclick={(e) => { e.stopPropagation(); page.updateId(match[1]); }}
-                       >
-                         [ Open Asset ]
+                       <div class="open-asset-drawer">
+                         <div 
+                           class="open-asset-btn"
+                           onpointerdown={(e) => e.stopPropagation()}
+                           onclick={(e) => { e.stopPropagation(); page.updateId(match[1]); }}
+                         >
+                           Open
+                         </div>
                        </div>
                      {/if}
                    </div>
@@ -1203,10 +1207,23 @@ padding: 1.51rem;*/
     align-items: center;
   }
 
-  .open-asset-btn {
-    position: absolute;
-    left: 100%;
+  .open-asset-drawer {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-width 0.3s ease, opacity 0.3s ease, margin-left 0.3s ease;
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .input-image-wrapper:hover .open-asset-drawer {
+    max-width: 80px;
+    opacity: 1;
     margin-left: 8px;
+  }
+
+  .open-asset-btn {
     white-space: nowrap;
     background-color: #686158;
     color: #F7E8D2;
@@ -1215,22 +1232,11 @@ padding: 1.51rem;*/
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s 1.5s; /* Delay fading out */
-    z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   .open-asset-btn:hover {
     background-color: #4a3f38;
-    transition: opacity 0.2s 0s; /* Keep visible immediately when hovering the button itself */
-  }
-
-  .input-image-wrapper:hover .open-asset-btn {
-    opacity: 1;
-    pointer-events: auto;
-    transition: opacity 0.2s 0s; /* Show immediately when hovering the wrapper */
   }
 
   .asset__inputs-images img{
