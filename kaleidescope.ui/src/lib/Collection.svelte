@@ -8,10 +8,12 @@ import {location, querystring} from 'svelte-spa-router'
 import {getContext} from 'svelte'
 import { getMeilisearchUrl } from './functions/convex_helpers.js';
 import { fixImageUrl } from './functions/uri_helpers';
-  import Asset from './Asset.svelte';
-
+import Asset from './Asset.svelte';
+import Metrics from './Metrics.svelte';
+import { featureOn } from './growthbook';
 
 let { params = {} ,  id = 'default'} = $props() 
+let isExperimental = featureOn("experimental");
 let name = $derived(params.name ||  id );
 
 const index = getContext("app.indexName")
@@ -46,7 +48,41 @@ async function getDocument(asset){
     return doc
 }
 
+async function getAncestors(docId) {
+    let results = [];
+    let currentId = docId;
+    let visited = new Set();
+    const regex = /([a-f0-9]{32,64})\.(?:png|jpg|jpeg|mp4|webp)$/i;
+
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        try {
+            const doc = await mClient.index(index).getDocument(currentId);
+            results.push(doc);
+            
+            let nextId = null;
+            if (doc.inputs) {
+                for (let i of doc.inputs) {
+                    if (i?.type?.trim() === "image" && i.value) {
+                        const match = i.value.match(regex);
+                        if (match && match[1]) {
+                            nextId = match[1];
+                            break;
+                        }
+                    }
+                }
+            }
+            currentId = nextId;
+        } catch (e) {
+            console.error("Failed to fetch ancestor:", currentId, e);
+            break;
+        }
+    }
+    return results;
+}
+
 let selected = $state(null)
+let showMetrics = $state(false)
 let it = $derived(window.location)
 let showTitle = $derived(!window.location.href.includes('collections'));
 
@@ -118,7 +154,26 @@ let showTitle = $derived(!window.location.href.includes('collections'));
 
     {:else}
                                   
-        <Asset params={{ id: selected }} onSelect={()=>{ console.log("Collection:click:asset", selected); selected = null}} />
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <Asset params={{ id: selected }} onSelect={()=>{ console.log("Collection:click:asset", selected); selected = null; showMetrics = false;}} />
+            
+            {#if isExperimental}
+                <div style="display: flex; justify-content: center; margin-top: 10px;">
+                    <button class="metrics-toggle-btn" onclick={() => showMetrics = !showMetrics}>
+                        Metrics
+                    </button>
+                </div>
+                {#if showMetrics}
+                    {#await getAncestors(selected)}
+                        <div class="collection__loading">Loading metrics...</div>
+                    {:then ancestors}
+                        {#if ancestors.length > 0}
+                            <Metrics data={ancestors} />
+                        {/if}
+                    {/await}
+                {/if}
+            {/if}
+        </div>
     {/if}
 
 {/if}
@@ -198,5 +253,21 @@ let showTitle = $derived(!window.location.href.includes('collections'));
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  .metrics-toggle-btn {
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .metrics-toggle-btn:hover {
+    background-color: #e0e0e0;
   }
 </style>
