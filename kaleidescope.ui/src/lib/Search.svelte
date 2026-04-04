@@ -16,7 +16,9 @@
   import FilterShortcuts from './FilterShortcuts.svelte';
   import { querystring, replace, push } from 'svelte-spa-router';
   import Metrics from './Metrics.svelte';
+  import { featureOn } from './growthbook';
   
+  let isExperimental = featureOn("experimental");
 
  let { params = {} }  = $props()
 
@@ -330,6 +332,7 @@
         <!-- {JSON.stringify(searchState)} -->
         <SearchResultGrid {results} {isDetailOn} onUpdate={addFilter} onSelect={() =>  hideElements = !hideElements  }/>
         {#if hasWorkflowIdFilter || hasDateFilter}
+          {#if $isExperimental}
           <div style="text-align: center; margin-top: 1rem;">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -344,6 +347,7 @@
           </div>
           {#if showMetrics}
             <Metrics data={results.entries} onclick={() => showMetrics = false} />
+          {/if}
           {/if}
         {/if}
         {/if}
