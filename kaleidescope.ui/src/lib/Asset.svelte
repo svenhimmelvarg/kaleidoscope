@@ -12,6 +12,7 @@
   import { createAssetController } from './controllers/AssetController.js';
   import Notifications from "./Notifications.svelte";
   import CollectionImagePicker from './CollectionImagePicker.svelte';
+  import ImageSourcePicker from './ImageSourcePicker.svelte';
 
 
 
@@ -166,73 +167,6 @@
 
   }
 
-
-  async function getFacetValues(doc,name){
-    const ret = await mClient.index(indexName).search("", {
-      sort: ['created:desc'],
-      limit: 1000,
-      attributesToRetrieve: ['inputs']
-    });
-
-    const uniqueImages = new Set();
-    const images = [];
-
-    ret.hits.forEach(h => {
-      const imageInputs = (h.inputs || []).filter(i => i.type && i.type.trim() === 'image');
-      imageInputs.forEach(i => {
-        if (i.value && /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(i.value)) {
-          if (!uniqueImages.has(i.value)) {
-            uniqueImages.add(i.value);
-            images.push(i.value);
-          }
-        }
-      });
-    });
-    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
-    const releaseImages = [];
-    const otherImages = [];
-    
-    images.forEach(img => {
-      if (img.startsWith(`${releaseFolder}/`)) {
-        releaseImages.push(img);
-      } else {
-        otherImages.push(img);
-      }
-    });
-    
-    const finalImages = [...releaseImages, ...otherImages];
-    
-    console.log("Asset:getFaceValues", name, finalImages)
-    return finalImages
-
-  }
-
-
-  let inputTab = $state("input")
-
-  async function getRecentOutputs(doc, daysOffset) {
-    const today = new Date();
-    today.setDate(today.getDate() - daysOffset);
-    const yy = today.getFullYear();
-    const mm = today.getMonth() + 1;
-    const dd = today.getDate();
-
-    const ret = await mClient.index(indexName).search("", {
-      filter: `yy = ${yy} AND mm = ${mm} AND dd = ${dd}`,
-      sort: ['created:desc'],
-      limit: 100
-    });
-    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 50);
-  }
-
-  async function getUpvotedOutputs(doc) {
-    const ret = await mClient.index(indexName).search("", {
-      filter: `vote >= 1`,
-      sort: ['created:desc'],
-      limit: 50
-    });
-    return ret.hits;
-  }
 
   let collapsed = $state(true)
   let fileInput = $state();
@@ -1035,103 +969,15 @@
 
 
        <!-- {selectedImageInput} {JSON.stringify(showInputValues,null,2)} -->
-       {#if showInputValues }
-
-        <div>
-          <div style="display:flex; gap: 10px; margin-bottom: 10px; cursor:pointer;">
-             <div onclick={() => inputTab = 'input'} style="{inputTab === 'input' ? 'font-weight:bold' : ''}">Pick Input</div>
-             <div onclick={() => inputTab = 'upvoted'} style="{inputTab === 'upvoted' ? 'font-weight:bold' : ''}">Upvoted</div>
-             <div onclick={() => inputTab = 'today'} style="{inputTab === 'today' ? 'font-weight:bold' : ''}">Today</div>
-             <div onclick={() => inputTab = 'yesterday'} style="{inputTab === 'yesterday' ? 'font-weight:bold' : ''}">Yesterday</div>
-             <div onclick={() => inputTab = 'collections'} style="{inputTab === 'collections' ? 'font-weight:bold' : ''}">Collections</div>
-          </div>
-          
-          {#if inputTab === 'input'}
-             {#await getFacetValues(doc,'inputs.value')}
-                Nothing ...
-             {:then images}
-                 <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
-                 {#each images as i }
-                 <div>
-                    <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{`/images/${doc.source}/input/${i}`}"
-                      onclick = { () => {
-                            imagePrompt(doc, i)
-                            selectedImageInput = null
-                            showInputValues = !showInputValues
-                        }
-                      }
-                    />
-                  </div>
-                 {/each}
-                 </div>
-             {/await}
-          {:else if inputTab === 'upvoted'}
-             {#await getUpvotedOutputs(doc)}
-                Loading upvoted...
-             {:then hits}
-                 <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
-                 {#each hits as hit }
-                 <div>
-                    <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
-                      onclick = { () => {
-                            imagePrompt(doc, `local-output://${hit.id}||${hit.image_url}`)
-                            selectedImageInput = null
-                            showInputValues = !showInputValues
-                        }
-                      }
-                    />
-                  </div>
-                 {/each}
-                 </div>
-             {/await}
-          {:else if inputTab === 'today'}
-             {#await getRecentOutputs(doc, 0)}
-                Loading today...
-             {:then hits}
-                 <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
-                 {#each hits as hit }
-                 <div>
-                    <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
-                      onclick = { () => {
-                            imagePrompt(doc, `local-output://${hit.id}||${hit.image_url}`)
-                            selectedImageInput = null
-                            showInputValues = !showInputValues
-                        }
-                      }
-                    />
-                  </div>
-                 {/each}
-                 </div>
-             {/await}
-          {:else if inputTab === 'yesterday'}
-             {#await getRecentOutputs(doc, 1)}
-                Loading yesterday...
-             {:then hits}
-                 <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
-                 {#each hits as hit }
-                 <div>
-                    <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
-                      onclick = { () => {
-                            imagePrompt(doc, `local-output://${hit.id}||${hit.image_url}`)
-                            selectedImageInput = null
-                            showInputValues = !showInputValues
-                        }
-                      }
-                    />
-                  </div>
-                 {/each}
-                 </div>
-             {/await}
-          {:else if inputTab === 'collections'}
-             <CollectionImagePicker 
-               onSelect={(hit) => {
-                 imagePrompt(doc, `local-output://${hit.id}||${hit.image_url}`);
-                 selectedImageInput = null;
-                 showInputValues = !showInputValues;
-               }} 
-             />
-          {/if}
-       </div>
+       {#if showInputValues}
+         <ImageSourcePicker
+           {doc}
+           onSelectImage={(val) => {
+             imagePrompt(doc, val);
+             selectedImageInput = null;
+             showInputValues = !showInputValues;
+           }}
+         />
        {/if}
 
     </div>
