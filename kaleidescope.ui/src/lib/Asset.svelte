@@ -13,6 +13,7 @@
   import Notifications from "./Notifications.svelte";
   import CollectionImagePicker from './CollectionImagePicker.svelte';
   import ImageSourcePicker from './ImageSourcePicker.svelte';
+  import { longpress } from './actions/longpress.js';
 
 
 
@@ -232,89 +233,6 @@
 
   let showInputValues  = $state(false)
   let selectedImageInput = $state(null)
-
-  // Long press detection for main image
-  let mainImageLongPressTimer = $state(null);
-  let mainImageIsLongPress = $state(false);
-
-  function handleMainImageStartPress(event) {
-    mainImageIsLongPress = false;
-
-    mainImageLongPressTimer = setTimeout(() => {
-      mainImageIsLongPress = true;
-      collapsed = !collapsed;
-    }, 500); // 500ms for long press
-  }
-
-  function handleMainImageCancelPress() {
-    if (mainImageLongPressTimer) {
-      clearTimeout(mainImageLongPressTimer);
-      mainImageLongPressTimer = null;
-    }
-    mainImageIsLongPress = false;
-  }
-
-  function handleMainImageEndPress(event) {
-    if (mainImageLongPressTimer) {
-      clearTimeout(mainImageLongPressTimer);
-      mainImageLongPressTimer = null;
-    }
-
-    // If it wasn't a long press, handle the regular click
-    if (!mainImageIsLongPress) {
-       console.log("Asset:image:onSelect");
-       if (page.previousId == null){
-         onSelect()
-       }else{
-         page.updateId(page.previousId)
-       }
-    }
-
-    mainImageIsLongPress = false;
-  }
-
-  // Long press detection for input images
-  let longPressTimer = $state(null);
-  let isLongPress = $state(false);
-
-  function handleStartPress(event, doc, i) {
-    isLongPress = false;
-
-    longPressTimer = setTimeout(() => {
-      isLongPress = true;
-      selectedImageInput = i;
-      showInputValues = !showInputValues;
-    }, 500); // 500ms for long press
-  }
-
-  function handleCancelPress() {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-    isLongPress = false;
-  }
-
-  function handleEndPress(event, doc, i) {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-
-    // If it wasn't a long press, handle the regular click
-    if (!isLongPress) {
-      if (!selectedImageInput){
-        err.message = "Uploading ";
-          triggerFileUpload(doc, i);
-      }
-
-    }else{
-        err.message = "Loading ";
-
-    }
-
-    isLongPress = false;
-  }
 
   async function handleDownload(doc) {
     try {
@@ -582,10 +500,16 @@
             class="asset__image"
             src={isVideo ? `/images/thumbnails/${doc.id}.jpg` : fixImageUrl(doc.image_url, doc.source)}
             alt="Generated image"
-            onpointerdown={(e) => handleMainImageStartPress(e)}
-            onpointerup={(e) => handleMainImageEndPress(e)}
-            onpointercancel={(e) => handleMainImageCancelPress()}
-            onpointerleave={(e) => handleMainImageCancelPress()}
+            use:longpress={500}
+            onlongpress={() => { collapsed = !collapsed; }}
+            onclick={() => {
+              console.log("Asset:image:onSelect");
+              if (page.previousId == null){
+                onSelect()
+              }else{
+                page.updateId(page.previousId)
+              }
+            }}
             style="cursor: pointer;"
             title="Click to view, long press for settings"
           />
@@ -940,10 +864,18 @@
                    <div class="input-image-wrapper">
                      <!-- <div>{i.value}</div> -->
                      <img src="/images/{doc.source}/input/{i.value}"
-                           onpointerdown={(e) => handleStartPress(e, doc, i)}
-                           onpointerup={(e) => handleEndPress(e, doc, i)}
-                           onpointercancel={(e) => handleCancelPress()}
-                           onpointerleave={(e) => handleCancelPress()}
+                           use:longpress={500}
+                           onlongpress={() => {
+                             selectedImageInput = i;
+                             showInputValues = !showInputValues;
+                             err.message = "Loading ";
+                           }}
+                           onclick={() => {
+                             if (!selectedImageInput) {
+                               err.message = "Uploading ";
+                               triggerFileUpload(doc, i);
+                             }
+                           }}
                            style="cursor: pointer; border-radius:8px;"
                           title="Click to upload new image, long press to toggle input values" />
                      {#if match}
