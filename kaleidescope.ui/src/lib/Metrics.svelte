@@ -22,6 +22,18 @@
     validData.reduce((sum, d) => sum + (typeof d.elapsed_ms === 'number' ? d.elapsed_ms : 0), 0) / (1000 * 60)
   );
 
+  let imagesGenerated = $derived(validData.length);
+
+  let uniqueWorkflowCount = $derived(
+    new Set(validData.map(d => d.workflow_id).filter(id => id != null)).size
+  );
+
+  let workloadWindowHours = $derived(
+    validData.length > 0
+      ? (Math.max(...validData.map(d => d.date.getTime() + (d.elapsed_ms || 0))) - Math.min(...validData.map(d => d.date.getTime()))) / (1000 * 60 * 60)
+      : 0
+  );
+
   // Transform validData into a flat structure suitable for BarY with a color grouping dimension
   let barData = $derived(
     validData.map(d => (
@@ -62,36 +74,32 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="metrics-row" style="display: flex; gap: 1rem; align-items: stretch; margin-top: 1rem;">
-  <div class="metrics-container" style="flex: 3; margin-top: 0;" {onclick}>
-    {#if validData.length === 0}
-      <div class="metrics-empty">No valid elapsed_ms data to display</div>
-    {:else}
-      <Plot
-        x={{ axis: null, padding: 0.2 }}
-        fx={{ label: 'Time', tickFormat: (d: any) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
-        y={{ label: 'Elapsed Time (s)', grid: false, ticks: yTicks, axis: 'right' }}
-        height={300}
-        marginBottom={50}
-        marginLeft={80}
-        marginTop={30}
-        marginRight={30}
-      >
-        {#snippet footer()}
-          <div style="margin-top: 15px; display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 10px;">
-            <ColorLegend />
-          </div>
-        {/snippet}
-        <BarY 
-          data={barData} 
-          x="type" 
-          fx="date"
-          y="seconds" 
-          fill="type"
-          title={(d: any) => `${d.type}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`}
-        />
-      </Plot>
-    {/if}
+<div class="metrics-row counters" style="display: flex; gap: 1rem; align-items: stretch; margin-top: 1rem;">
+  <div class="metrics-container" style="flex: 1; margin-top: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;" {onclick}>
+    <div style="font-size: 3.5rem; font-weight: 700; color: rgba(10, 132, 255, 0.9);">
+      {imagesGenerated}
+    </div>
+    <div style="font-size: 1rem; color: rgba(60, 60, 67, 0.6); text-align: center; margin-top: 0.5rem; font-weight: 500;">
+      Images Generated
+    </div>
+  </div>
+
+  <div class="metrics-container" style="flex: 1; margin-top: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;" {onclick}>
+    <div style="font-size: 3.5rem; font-weight: 700; color: rgba(175, 82, 222, 0.9);">
+      {uniqueWorkflowCount}
+    </div>
+    <div style="font-size: 1rem; color: rgba(60, 60, 67, 0.6); text-align: center; margin-top: 0.5rem; font-weight: 500;">
+      Unique Workflows
+    </div>
+  </div>
+
+  <div class="metrics-container" style="flex: 1; margin-top: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;" {onclick}>
+    <div style="font-size: 3.5rem; font-weight: 700; color: rgba(255, 149, 0, 0.9);">
+      {workloadWindowHours.toFixed(2)}
+    </div>
+    <div style="font-size: 1rem; color: rgba(60, 60, 67, 0.6); text-align: center; margin-top: 0.5rem; font-weight: 500;">
+      Workload Window (Hours)
+    </div>
   </div>
 
   <div class="metrics-container" style="flex: 1; margin-top: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;" {onclick}>
@@ -102,6 +110,39 @@
       Total Compute (Mins)
     </div>
   </div>
+</div>
+
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="metrics-container" {onclick}>
+  {#if validData.length === 0}
+    <div class="metrics-empty">No valid elapsed_ms data to display</div>
+  {:else}
+    <Plot
+      x={{ axis: null, padding: 0.2 }}
+      fx={{ label: 'Time', tickFormat: (d: any) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+      y={{ label: 'Elapsed Time (s)', grid: false, ticks: yTicks, axis: 'right' }}
+      height={300}
+      marginBottom={50}
+      marginLeft={80}
+      marginTop={30}
+      marginRight={30}
+    >
+      {#snippet footer()}
+        <div style="margin-top: 15px; display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 10px;">
+          <ColorLegend />
+        </div>
+      {/snippet}
+      <BarY 
+        data={barData} 
+        x="type" 
+        fx="date"
+        y="seconds" 
+        fill="type"
+        title={(d: any) => `${d.type}: ${d.seconds.toFixed(2)}s (${d.date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`}
+      />
+    </Plot>
+  {/if}
 </div>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
