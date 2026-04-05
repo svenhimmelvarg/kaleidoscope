@@ -1,3 +1,5 @@
+import re
+import meilisearch
 from fastapi import APIRouter, Request, BackgroundTasks, Depends, HTTPException
 from kaleidescope.config import Config, load_config
 from kaleidescope.services import storage, comfy, convex
@@ -19,6 +21,44 @@ async def get_workflow(id: str, config: Config = Depends(get_config)):
     if not data:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return data
+
+
+@router.get("/workflow/{id}/lineage")
+async def get_workflow_lineage(id: str, config: Config = Depends(get_config)):
+    host = config.meilisearch_host
+    if not host.startswith("http"):
+        host = f"http://{host}"
+
+    client = meilisearch.Client(host, "password")
+
+    results = []
+    current_id = id
+    visited = set()
+    regex = re.compile(r"([a-f0-9]{32,64})\.(?:png|jpg|jpeg|mp4|webp)$", re.IGNORECASE)
+
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        try:
+            doc = client.index(config.index_name).get_document(current_id)
+            if not doc:
+                break
+            results.append(doc)
+
+            next_id = None
+            inputs = doc.get("inputs", [])
+            for i in inputs:
+                if isinstance(i, dict) and i.get("type", "").strip() == "image":
+                    val = i.get("value", "")
+                    match = regex.search(val)
+                    if match:
+                        next_id = match.group(1)
+                        break
+            current_id = next_id
+        except Exception as e:
+            # Document might not exist or Meilisearch error
+            break
+
+    return results
 
 
 @router.post("/workflow/{id}/invoke")

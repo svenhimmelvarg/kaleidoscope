@@ -246,3 +246,48 @@ def workflow_get(workflow_id: str):
 
     extracted = extract_workflow_fields(doc)
     click.echo(json.dumps(extracted, indent=2))
+
+@click.command(name="workflow:lineage", no_args_is_help=True)
+@click.argument("workflow_id")
+def workflow_lineage(workflow_id: str):
+    """
+    Get a workflow's ancestral lineage by its ID.
+
+    Outputs a JSON array containing objects with the `id` and `inputs` fields for each ancestor.
+
+    \b
+    ## Examples
+
+    \b
+    **1. Retrieve a specific workflow's lineage**
+    ```bash
+    op workflow:lineage 1e11af0abd47a164eb008b4caeab57af7a8f064151c6f24f82cfd290da6f6d09
+    ```
+    """
+    config = ensure_config()
+    api_url = config.kaleidescope_api_url
+
+    lineage_url = f"{api_url}/workflow/{workflow_id}/lineage"
+
+    try:
+        response = requests.get(lineage_url)
+        response.raise_for_status()
+        lineage_data = response.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            click.echo(f"Workflow '{workflow_id}' not found.", err=True)
+        else:
+            click.echo(f"Failed to fetch lineage for '{workflow_id}': {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Failed to fetch lineage for '{workflow_id}': {e}", err=True)
+        raise SystemExit(1)
+
+    result = []
+    for doc in lineage_data:
+        result.append({
+            "id": doc.get("id"),
+            "inputs": doc.get("inputs", [])
+        })
+
+    click.echo(json.dumps(result, indent=2))

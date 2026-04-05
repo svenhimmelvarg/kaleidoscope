@@ -168,7 +168,9 @@ let showTitle = $derived(!window.location.href.includes('collections'));
                         <div class="collection__loading">Loading metrics...</div>
                     {:then ancestors}
                         {#if ancestors.length > 0}
-                            <Metrics data={ancestors} />
+                            <div style="width: 80%; max-width: 1200px; margin: 0 auto;">
+                                <Metrics data={ancestors} />
+                            </div>
                         {/if}
                     {/await}
                 {/if}
