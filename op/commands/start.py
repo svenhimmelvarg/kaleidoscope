@@ -24,8 +24,10 @@ def start(services):
     try:
         # Run honcho start to manage processes defined in Procfile
         env_file = os.environ.get("OP_ENV_FILE", ".env")
+        env = os.environ.copy()
+        env["OP_ENV_FILE"] = env_file
         cmd = ["honcho", "-e", env_file, "start"] + list(services)
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, env=env, check=True)
     except KeyboardInterrupt:
         click.echo("\nStopping services...")
     except subprocess.CalledProcessError as e:
