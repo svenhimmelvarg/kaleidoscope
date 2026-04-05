@@ -22,6 +22,7 @@ DEFAULT_CONFIG = {
     "DATA_DIR": "./data",
     "RELEASE_FOLDER": "release",
     "PRERELEASE_FOLDER": "prerelease",
+    "INVOKE_METHOD": "invoke2",
 }
 
 
@@ -39,6 +40,7 @@ class Config:
     data_dir: str
     release_folder: str
     prerelease_folder: str
+    invoke_method: str
 
 
 def get_env_path() -> Path:
@@ -64,6 +66,7 @@ COMFYUI_INSTANCE_BASE_PATH=
 # Release folders (for indexer)
 RELEASE_FOLDER=release
 PRERELEASE_FOLDER=prerelease
+INVOKE_METHOD=invoke2
 
 # Meilisearch configuration
 MEILISEARCH_HOST=127.0.0.1:7700
@@ -135,6 +138,7 @@ def load_config() -> Optional[Config]:
         data_dir=get_value("DATA_DIR"),
         release_folder=get_value("RELEASE_FOLDER"),
         prerelease_folder=get_value("PRERELEASE_FOLDER"),
+        invoke_method=get_value("INVOKE_METHOD"),
     )
 
 

@@ -79,7 +79,8 @@ def get_data_dir():
     global __DATA_DIR__
     if __DATA_DIR__ is None:
         # Lazy initialization from config if not explicitly set
-        config = dotenv_values(".env")
+        env_file = os.environ.get("OP_ENV_FILE", ".env")
+        config = dotenv_values(env_file)
         __DATA_DIR__ = config.get("DATA_DIR", "./data")
     return __DATA_DIR__
 
@@ -109,7 +110,8 @@ def transform(doc, ignore_errors=[]):
 import os
 from dotenv import dotenv_values
 
-config = dotenv_values(".env")
+env_file = os.environ.get("OP_ENV_FILE", ".env")
+config = dotenv_values(env_file)
 
 
 def cache_folder(unique_id):

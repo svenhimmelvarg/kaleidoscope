@@ -177,8 +177,9 @@ def kaleidescope_ui():
     env["VITE_KALEIDESCOPE_API_URL"] = config.kaleidescope_api_url
     env["VITE_MEILISEARCH_HOST"] = config.meilisearch_host
     env["VITE_CONVEX_URL"] = config.convex_url
-    env["INDEX_NAME"] = config.index_name
-    env["RELEASE_FOLDER"] = config.release_folder
+    env["VITE_INDEX_NAME"] = config.index_name
+    env["VITE_RELEASE_FOLDER"] = config.release_folder
+    env["VITE_INVOKE_METHOD"] = config.invoke_method
 
     display_banner(config, "Kaleidescope UI Dev Server")
     display_info(f"Starting UI server at http://{host}:{port}")

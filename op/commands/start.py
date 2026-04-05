@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -22,7 +23,8 @@ def start(services):
 
     try:
         # Run honcho start to manage processes defined in Procfile
-        cmd = ["honcho", "start"] + list(services)
+        env_file = os.environ.get("OP_ENV_FILE", ".env")
+        cmd = ["honcho", "-e", env_file, "start"] + list(services)
         subprocess.run(cmd, check=True)
     except KeyboardInterrupt:
         click.echo("\nStopping services...")
