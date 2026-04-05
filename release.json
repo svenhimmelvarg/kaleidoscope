@@ -1,6 +1,6 @@
 {
   "experimental": {
-    "defaultValue": true,
+    "defaultValue": false,
     "rules": []
   }
 }
