@@ -10,8 +10,10 @@ import datetime
 from math import gcd
 from PIL import Image
 from dotenv import dotenv_values
+import os
 
-config = dotenv_values(".env")
+env_file = os.environ.get("OP_ENV_FILE", ".env")
+config = dotenv_values(env_file)
 
 
 def print_config_banner(args=None):
@@ -94,7 +96,15 @@ args = create_arguments()
 
 # Calculate effective configuration values
 effective_data_dir = args.data_dir or config.get("DATA_DIR", "./data")
-effective_index_name = args.indexer_name or config.get("INDEX_NAME", "comfy_outputs_v110")
+
+index_name_from_config = config.get("INDEX_NAME")
+effective_index_name = args.indexer_name or index_name_from_config
+
+if not effective_index_name:
+    raise ValueError(
+        "INDEX_NAME is required. Please provide it via --indexer.name or in your .env file."
+    )
+
 
 # Set up data directory in punter and create directory structure
 punter.set_data_dir(effective_data_dir)
