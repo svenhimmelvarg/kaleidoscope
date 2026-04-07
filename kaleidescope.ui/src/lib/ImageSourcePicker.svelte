@@ -2,11 +2,47 @@
   import { getContext } from 'svelte';
   import { fixImageUrl } from "./functions/uri_helpers";
   import CollectionImagePicker from './CollectionImagePicker.svelte';
+  import SearchResultGrid from './SearchResultGrid/SearchResultGrid.svelte';
+  import { featureOn } from './growthbook';
 
-  let { doc, onSelectImage } = $props();
+  let { doc, inputImage, onSelectImage } = $props();
+  let isExperimental = featureOn("experimental");
+
+  let hashDocId = $derived.by(() => {
+    if (!inputImage || !inputImage.value) return null;
+    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+    const regex = new RegExp(`${releaseFolder}s?\\/([a-f0-9]{32,64})\\.(png|mp4|jpg|jpeg|webp)$`, 'i');
+    const match = inputImage.value.match(regex);
+    if (match && match[1]) {
+      return match[1];
+    }
+    const hashRegex = /([a-f0-9]{32,64})\.(png|jpg|jpeg|mp4|webp)$/i;
+    const hashMatch = inputImage.value.match(hashRegex);
+    if (hashMatch && hashMatch[1]) {
+      return hashMatch[1];
+    }
+    return null;
+  });
 
   const indexName = getContext("app.indexName");
   const mClient = getContext("search.client");
+
+  async function getWorkflowResults(docId) {
+    try {
+      const sourceDoc = await mClient.index(indexName).getDocument(docId);
+      if (sourceDoc && sourceDoc.workflow_id) {
+        const ret = await mClient.index(indexName).search("", {
+          filter: `workflow_id = "${sourceDoc.workflow_id}"`,
+          sort: ['created:desc'],
+          limit: 50
+        });
+        return ret.hits;
+      }
+    } catch (e) {
+      console.error("Failed to fetch workflow results for:", docId, e);
+    }
+    return [];
+  }
 
   let inputTab = $state("input");
 
@@ -82,6 +118,9 @@
      <div onclick={() => inputTab = 'today'} style="{inputTab === 'today' ? 'font-weight:bold' : ''}">Today</div>
      <div onclick={() => inputTab = 'yesterday'} style="{inputTab === 'yesterday' ? 'font-weight:bold' : ''}">Yesterday</div>
      <div onclick={() => inputTab = 'collections'} style="{inputTab === 'collections' ? 'font-weight:bold' : ''}">Collections</div>
+     {#if isExperimental && hashDocId}
+        <div onclick={() => inputTab = 'workflow'} style="{inputTab === 'workflow' ? 'font-weight:bold' : ''}">Workflow</div>
+     {/if}
   </div>
   
   {#if inputTab === 'input'}
@@ -158,5 +197,19 @@
          onSelectImage(`local-output://${hit.id}||${hit.image_url}`);
        }} 
      />
+  {:else if inputTab === 'workflow' && isExperimental && hashDocId}
+     {#await getWorkflowResults(hashDocId)}
+        Loading workflow...
+     {:then hits}
+         {#if hits.length > 0}
+            <SearchResultGrid 
+              results={{ entries: hits }} 
+              isDetailOn={false} 
+              onSelect={(r) => onSelectImage(`local-output://${r.id}||${r.image_url}`)} 
+            />
+         {:else}
+            No workflow results found.
+         {/if}
+     {/await}
   {/if}
 </div>

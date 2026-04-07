@@ -905,16 +905,17 @@
 
 
        <!-- {selectedImageInput} {JSON.stringify(showInputValues,null,2)} -->
-       {#if showInputValues}
-         <ImageSourcePicker
-           {doc}
-           onSelectImage={(val) => {
-             imagePrompt(doc, val);
-             selectedImageInput = null;
-             showInputValues = !showInputValues;
-           }}
-         />
-       {/if}
+        {#if showInputValues}
+          <ImageSourcePicker
+            {doc}
+            inputImage={selectedImageInput}
+            onSelectImage={(val) => {
+              imagePrompt(doc, val);
+              selectedImageInput = null;
+              showInputValues = !showInputValues;
+            }}
+          />
+        {/if}
 
     </div>
   {:catch error}
