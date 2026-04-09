@@ -391,7 +391,7 @@ def fn_create_meilisearch_doc(data, ctx):
         #     "output_fn": fn_save_node ( _t( type = "res.megapixel"  ))
         # },
         {
-            "ref": "NunchakuFluxDiTLoader.inputs.model_path",
+            "ref": r"\w*DiTLoader\w*.inputs.\w*model\w*",
             "type": list,
             "output_field": "models",
             "output_fn": None,
