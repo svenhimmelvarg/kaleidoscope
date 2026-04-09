@@ -27,19 +27,18 @@
   const indexName = getContext("app.indexName");
   const mClient = getContext("search.client");
 
-  async function getWorkflowResults(docId) {
+  async function getWorkflowResults(doc) {
     try {
-      const sourceDoc = await mClient.index(indexName).getDocument(docId);
-      if (sourceDoc && sourceDoc.workflow_id) {
+      if (doc && doc.workflow_id) {
         const ret = await mClient.index(indexName).search("", {
-          filter: `workflow_id = "${sourceDoc.workflow_id}"`,
+          filter: `workflow_id = "${doc.workflow_id}"`,
           sort: ['created:desc'],
-          limit: 50
+          limit: 90
         });
         return ret.hits;
       }
     } catch (e) {
-      console.error("Failed to fetch workflow results for:", docId, e);
+      console.error("Failed to fetch workflow results for:", doc.workflow_id, e);
     }
     return [];
   }
@@ -95,16 +94,16 @@
     const ret = await mClient.index(indexName).search("", {
       filter: `yy = ${yy} AND mm = ${mm} AND dd = ${dd}`,
       sort: ['created:desc'],
-      limit: 100
+      limit: 200
     });
-    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 50);
+    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 90);
   }
 
   async function getUpvotedOutputs(doc) {
     const ret = await mClient.index(indexName).search("", {
       filter: `vote >= 1`,
       sort: ['created:desc'],
-      limit: 50
+      limit: 90
     });
     return ret.hits;
   }
@@ -118,7 +117,7 @@
      <div onclick={() => inputTab = 'today'} style="{inputTab === 'today' ? 'font-weight:bold' : ''}">Today</div>
      <div onclick={() => inputTab = 'yesterday'} style="{inputTab === 'yesterday' ? 'font-weight:bold' : ''}">Yesterday</div>
      <div onclick={() => inputTab = 'collections'} style="{inputTab === 'collections' ? 'font-weight:bold' : ''}">Collections</div>
-     {#if isExperimental && hashDocId}
+     {#if isExperimental && doc?.workflow_id}
         <div onclick={() => inputTab = 'workflow'} style="{inputTab === 'workflow' ? 'font-weight:bold' : ''}">Workflow</div>
      {/if}
   </div>
@@ -197,8 +196,8 @@
          onSelectImage(`local-output://${hit.id}||${hit.image_url}`);
        }} 
      />
-  {:else if inputTab === 'workflow' && isExperimental && hashDocId}
-     {#await getWorkflowResults(hashDocId)}
+  {:else if inputTab === 'workflow' && isExperimental && doc?.workflow_id}
+     {#await getWorkflowResults(doc)}
         Loading workflow...
      {:then hits}
          {#if hits.length > 0}
