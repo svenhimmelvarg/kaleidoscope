@@ -4,9 +4,35 @@
   import CollectionImagePicker from './CollectionImagePicker.svelte';
   import SearchResultGrid from './SearchResultGrid/SearchResultGrid.svelte';
   import { featureOn } from './growthbook';
+  import { createAssetController } from './controllers/AssetController.js';
 
   let { doc, inputImage, onSelectImage } = $props();
   let isExperimental = featureOn("experimental");
+
+  const client = getContext("convex.client");
+  let assetController = createAssetController(client);
+  
+  let cameraInput = $state(null);
+  let isUploading = $state(false);
+
+  async function handleCameraChange(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    isUploading = true;
+    try {
+      const filename = file.name || `camera_${Date.now()}.jpg`;
+      const result = await assetController.upload(file, doc.source, filename);
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+      const virtualPath = `virtual://${result.storageId}/${doc.source}/input/${releaseFolder}/${filename}`;
+      onSelectImage(virtualPath);
+    } catch (error) {
+      console.error("Camera upload error:", error);
+    } finally {
+      isUploading = false;
+      if (cameraInput) cameraInput.value = '';
+    }
+  }
 
   let hashDocId = $derived.by(() => {
     if (!inputImage || !inputImage.value) return null;
@@ -120,6 +146,7 @@
      {#if isExperimental && doc?.workflow_id}
         <div onclick={() => inputTab = 'workflow'} style="{inputTab === 'workflow' ? 'font-weight:bold' : ''}">Workflow</div>
      {/if}
+     <div onclick={() => inputTab = 'camera'} style="{inputTab === 'camera' ? 'font-weight:bold' : ''}">Camera</div>
   </div>
   
   {#if inputTab === 'input'}
@@ -210,5 +237,21 @@
             No workflow results found.
          {/if}
      {/await}
+  {:else if inputTab === 'camera'}
+     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 20px; gap: 10px;">
+        <input type="file" accept="image/*" capture="environment" bind:this={cameraInput} onchange={handleCameraChange} style="display: none;" />
+        
+        {#if isUploading}
+           <div>Uploading photo...</div>
+        {:else}
+           <div 
+             onclick={() => cameraInput?.click()} 
+             style="display:flex; align-items:center; justify-content:center; width: 100px; height: 100px; border: 2px dashed #ccc; border-radius: 8px; cursor: pointer; font-size: 2em; color: #ccc;"
+           >
+             +
+           </div>
+           <div style="font-size: 0.9em; color: #666;">Take a photo</div>
+        {/if}
+     </div>
   {/if}
 </div>
