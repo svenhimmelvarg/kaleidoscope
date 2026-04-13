@@ -6,7 +6,7 @@
   import { featureOn } from './growthbook';
   import { createAssetController } from './controllers/AssetController.js';
 
-  let { doc, inputImage, onSelectImage } = $props();
+  let { doc, inputImage, onSelectImage, inputTab = $bindable("input") } = $props();
   let isExperimental = featureOn("experimental");
 
   const client = getContext("convex.client");
@@ -59,7 +59,7 @@
         const ret = await mClient.index(indexName).search("", {
           filter: `workflow_id = "${doc.workflow_id}"`,
           sort: ['created:desc'],
-          limit: 90
+          limit: 50
         });
         return ret.hits;
       }
@@ -68,8 +68,6 @@
     }
     return [];
   }
-
-  let inputTab = $state("input");
 
   async function getFacetValues(doc,name){
     const ret = await mClient.index(indexName).search("", {
@@ -122,14 +120,14 @@
       sort: ['created:desc'],
       limit: 200
     });
-    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 90);
+    return ret.hits.filter(h => !(h.vote < 0) && !(h.score < 0)).slice(0, 50);
   }
 
   async function getUpvotedOutputs(doc) {
     const ret = await mClient.index(indexName).search("", {
       filter: `vote >= 1`,
       sort: ['created:desc'],
-      limit: 90
+      limit: 50
     });
     return ret.hits;
   }

@@ -29,15 +29,19 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import uuid
+import websocket
 
 
 # =============================================================================
 # Stage 2 node IDs — DO NOT TOUCH Stage 1
 # =============================================================================
-STAGE2_SAMPLER   = "72"   # ClownsharKSampler_Beta (stage 2)
-STAGE2_GUIDE     = "71"   # ClownGuide_Beta (stage 2)
-STAGE2_NOISE     = "95"   # LatentNoised
-STAGE2_SAVE      = "77"   # SaveImage output
+STAGE2_SAMPLER = "72"  # ClownsharKSampler_Beta (stage 2)
+STAGE2_GUIDE = "71"  # ClownGuide_Beta (stage 2)
+STAGE2_NOISE = "95"  # LatentNoised
+STAGE2_SAVE = "77"  # SaveImage output
+STAGE1_RESOLUTION = "47"  # FluxResolutionNode
+STAGE2_LATENT_SCALE = "87"  # FloatConstant for upscale
 
 
 # =============================================================================
@@ -97,6 +101,42 @@ FULL_SWEEP = {
 }
 
 
+def round4_filter(variant):
+    try:
+        mp = float(variant[STAGE1_RESOLUTION]["inputs"]["megapixel"])
+        scale = float(variant[STAGE2_LATENT_SCALE]["inputs"]["value"])
+        return 2.5 <= mp * (scale**2) <= 4.0
+    except (KeyError, ValueError):
+        return True
+
+
+ROUND_4 = {
+    "description": "Megapixel and scale factor sweep (2.5 to 4.0 MP final resolution)",
+    "fixed": {},
+    "sweep": {
+        STAGE1_RESOLUTION: {
+            "megapixel": [
+                "0.1",
+                "0.5",
+                "0.75",
+                "1.0",
+                "1.5",
+                "2.0",
+                "2.1",
+                "2.2",
+                "2.3",
+                "2.4",
+                "2.5",
+            ],
+        },
+        STAGE2_LATENT_SCALE: {
+            "value": [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0],
+        },
+    },
+    "filter": round4_filter,
+}
+
+
 def build_variants(pipeline, round_config):
     """
     Generate all parameter combinations from a round config.
@@ -131,6 +171,9 @@ def build_variants(pipeline, round_config):
             node_title = variant[node_id].get("_meta", {}).get("title", node_id)
             params_record[f"{node_title}.{param_name}"] = value
 
+        if "filter" in round_config and not round_config["filter"](variant):
+            continue
+
         variants.append((params_record, variant))
 
     return variants
@@ -146,8 +189,9 @@ def set_output_prefix(pipeline, run_id, experiment_name="experiment-0001"):
 
 
 def queue_to_comfyui(pipeline, server="127.0.0.1:8188"):
-    """Queue a pipeline to a running ComfyUI instance."""
-    payload = json.dumps({"prompt": pipeline}).encode("utf-8")
+    """Queue a pipeline to a running ComfyUI instance and wait for it to finish."""
+    client_id = str(uuid.uuid4())
+    payload = json.dumps({"prompt": pipeline, "client_id": client_id}).encode("utf-8")
     req = urllib.request.Request(
         f"http://{server}/prompt",
         data=payload,
@@ -156,6 +200,22 @@ def queue_to_comfyui(pipeline, server="127.0.0.1:8188"):
     try:
         resp = urllib.request.urlopen(req, timeout=10)
         result = json.loads(resp.read())
+        prompt_id = result.get("prompt_id")
+
+        if prompt_id:
+            ws_url = f"ws://{server}/ws?clientId={client_id}"
+            ws = websocket.create_connection(ws_url, timeout=300)
+            while True:
+                out = ws.recv()
+                if isinstance(out, str):
+                    message = json.loads(out)
+                    if (
+                        message.get("type") == "executing"
+                        and message.get("data", {}).get("node") is None
+                    ):
+                        break
+            ws.close()
+
         return result
     except urllib.error.URLError as e:
         print(f"  [ERROR] Could not connect to ComfyUI at {server}: {e}")
@@ -174,35 +234,68 @@ def save_variant_json(pipeline, output_dir, run_id):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Stage 2 parameter sweep for ComfyUI pipeline"
-    )
+    parser = argparse.ArgumentParser(description="Stage 2 parameter sweep for ComfyUI pipeline")
     parser.add_argument("pipeline", help="Path to pipeline JSON file")
-    parser.add_argument("--round", type=str, default="1",
-                        choices=["1", "2", "3", "all"],
-                        help="Which experiment round to run (default: 1)")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Max number of variants to generate/queue")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Save JSONs but don't queue to ComfyUI")
-    parser.add_argument("--server", default="127.0.0.1:8188",
-                        help="ComfyUI server address (default: 127.0.0.1:8188)")
-    parser.add_argument("--output-dir", default=None,
-                        help="Directory to save variant JSONs (default: ./experiments/<round>)")
-    parser.add_argument("--shuffle", action="store_true",
-                        help="Randomize the order of variants")
+    parser.add_argument(
+        "--round",
+        type=str,
+        default="1",
+        choices=["1", "2", "3", "4", "all"],
+        help="Which experiment round to run (default: 1)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Max number of variants to generate/queue"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Save JSONs but don't queue to ComfyUI"
+    )
+    parser.add_argument(
+        "--server",
+        default="127.0.0.1:8188",
+        help="ComfyUI server address (default: 127.0.0.1:8188)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory to save variant JSONs (default: ./experiments/<round>)",
+    )
+    parser.add_argument("--shuffle", action="store_true", help="Randomize the order of variants")
 
     # Round 2 inputs: lock in best values from round 1
-    parser.add_argument("--best-denoise", type=float, default=None,
-                        help="Best denoise from round 1 (required for round 2+)")
-    parser.add_argument("--best-noise", type=float, default=None,
-                        help="Best noise_strength from round 1 (required for round 2+)")
+    parser.add_argument(
+        "--best-denoise",
+        type=float,
+        default=None,
+        help="Best denoise from round 1 (required for round 2+)",
+    )
+    parser.add_argument(
+        "--best-noise",
+        type=float,
+        default=None,
+        help="Best noise_strength from round 1 (required for round 2+)",
+    )
 
     # Round 3 inputs: lock in best values from round 2
-    parser.add_argument("--best-weight", type=float, default=None,
-                        help="Best guide weight from round 2 (required for round 3)")
-    parser.add_argument("--best-cutoff", type=float, default=None,
-                        help="Best guide cutoff from round 2 (required for round 3)")
+    parser.add_argument(
+        "--best-weight",
+        type=float,
+        default=None,
+        help="Best guide weight from round 2 (required for round 3)",
+    )
+    parser.add_argument(
+        "--best-cutoff",
+        type=float,
+        default=None,
+        help="Best guide cutoff from round 2 (required for round 3)",
+    )
+
+    # Round 4 inputs: lock in best seed from round 3
+    parser.add_argument(
+        "--best-seed",
+        type=int,
+        default=None,
+        help="Best seed from round 3 (required for round 4)",
+    )
 
     args = parser.parse_args()
 
@@ -221,13 +314,38 @@ def main():
         config["fixed"][STAGE2_SAMPLER] = {"denoise": args.best_denoise}
         config["fixed"][STAGE2_NOISE] = {"noise_strength": args.best_noise}
     elif args.round == "3":
-        if any(v is None for v in [args.best_denoise, args.best_noise,
-                                     args.best_weight, args.best_cutoff]):
-            print("ERROR: Round 3 requires --best-denoise, --best-noise, "
-                  "--best-weight, --best-cutoff")
+        if any(
+            v is None
+            for v in [args.best_denoise, args.best_noise, args.best_weight, args.best_cutoff]
+        ):
+            print(
+                "ERROR: Round 3 requires --best-denoise, --best-noise, --best-weight, --best-cutoff"
+            )
             sys.exit(1)
         config = copy.deepcopy(ROUND_3)
         config["fixed"][STAGE2_SAMPLER] = {"denoise": args.best_denoise}
+        config["fixed"][STAGE2_NOISE] = {"noise_strength": args.best_noise}
+        config["fixed"][STAGE2_GUIDE] = {
+            "weight": args.best_weight,
+            "cutoff": args.best_cutoff,
+        }
+    elif args.round == "4":
+        if any(
+            v is None
+            for v in [
+                args.best_denoise,
+                args.best_noise,
+                args.best_weight,
+                args.best_cutoff,
+                args.best_seed,
+            ]
+        ):
+            print(
+                "ERROR: Round 4 requires --best-denoise, --best-noise, --best-weight, --best-cutoff, --best-seed"
+            )
+            sys.exit(1)
+        config = copy.deepcopy(ROUND_4)
+        config["fixed"][STAGE2_SAMPLER] = {"denoise": args.best_denoise, "seed": args.best_seed}
         config["fixed"][STAGE2_NOISE] = {"noise_strength": args.best_noise}
         config["fixed"][STAGE2_GUIDE] = {
             "weight": args.best_weight,
@@ -243,7 +361,7 @@ def main():
         random.shuffle(variants)
 
     if args.limit is not None:
-        variants = variants[:args.limit]
+        variants = variants[: args.limit]
 
     # Output directory
     output_dir = args.output_dir or f"./experiments/round_{args.round}"
@@ -252,14 +370,14 @@ def main():
     # Print experiment summary
     total = len(variants)
     est_time = total * 5
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Experiment: Stage 2 Parameter Sweep")
     print(f"  Round: {args.round} — {config['description']}")
     print(f"  Variants: {total}")
-    print(f"  Est. time: {est_time}s (~{est_time/60:.1f} min)")
+    print(f"  Est. time: {est_time}s (~{est_time / 60:.1f} min)")
     print(f"  Output: {output_dir}")
     print(f"  Mode: {'DRY RUN (save only)' if args.dry_run else f'Queue to {args.server}'}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if config["fixed"]:
         print(f"\n  Fixed parameters:")
@@ -292,11 +410,13 @@ def main():
         param_str = " | ".join(f"{k}={v}" for k, v in params.items())
         print(f"  [{run_id:3d}/{total}] {param_str}")
 
-        manifest["runs"].append({
-            "run_id": run_id,
-            "params": params,
-            "json_path": json_path,
-        })
+        manifest["runs"].append(
+            {
+                "run_id": run_id,
+                "params": params,
+                "json_path": json_path,
+            }
+        )
 
         if not args.dry_run:
             result = queue_to_comfyui(variant, args.server)
@@ -313,11 +433,11 @@ def main():
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Done. {total} variants {'saved' if args.dry_run else 'queued'}.")
     print(f"  Manifest: {manifest_path}")
     print(f"  Images will save to: experiments/experiment-0001/run_XXXX")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

@@ -176,6 +176,7 @@
   let currentVote = $state(0);
   let publishStatus = $state({});
   let isPlayingVideo = $state(false);
+  let lastPickerTab = $state("input");
 
   async function imagePrompt(doc,i){
       if (!selectedImageInput) {
@@ -904,18 +905,19 @@
 
 
 
-       <!-- {selectedImageInput} {JSON.stringify(showInputValues,null,2)} -->
-        {#if showInputValues}
-          <ImageSourcePicker
-            {doc}
-            inputImage={selectedImageInput}
-            onSelectImage={(val) => {
-              imagePrompt(doc, val);
-              selectedImageInput = null;
-              showInputValues = !showInputValues;
-            }}
-          />
-        {/if}
+        <!-- {selectedImageInput} {JSON.stringify(showInputValues,null,2)} -->
+         {#if showInputValues}
+           <ImageSourcePicker
+             {doc}
+             inputImage={selectedImageInput}
+             bind:inputTab={lastPickerTab}
+             onSelectImage={(val) => {
+               imagePrompt(doc, val);
+               selectedImageInput = null;
+               showInputValues = !showInputValues;
+             }}
+           />
+         {/if}
 
     </div>
   {:catch error}
