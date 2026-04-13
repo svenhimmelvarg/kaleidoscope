@@ -3,7 +3,7 @@ import {useQuery} from 'convex-svelte'
 import { api } from "../convex/_generated/api.js";
 import { createBookmarkController } from './controllers/BookmarkController.js';
 import { Meilisearch } from 'meilisearch';
-import {location, querystring} from 'svelte-spa-router'
+import {location, querystring, push} from 'svelte-spa-router'
 
 import {getContext} from 'svelte'
 import { getMeilisearchUrl } from './functions/convex_helpers.js';
@@ -26,6 +26,12 @@ const mClient = new Meilisearch({
     apiKey: 'password'
 });
 
+
+function handleUpdate(args) {
+    const searchParams = new URLSearchParams();
+    searchParams.set('filters', JSON.stringify([args]));
+    push(`/search?${searchParams.toString()}`);
+}
 
 async function getByPrompt(prompt_id) {
     try {
@@ -81,7 +87,7 @@ async function getAncestors(docId) {
     return results;
 }
 
-let selected = $state(null)
+let selected = $derived(params.id || null)
 let showMetrics = $state(false)
 let it = $derived(window.location)
 let showTitle = $derived(!window.location.href.includes('collections'));
@@ -120,9 +126,9 @@ let showTitle = $derived(!window.location.href.includes('collections'));
                     
                     <div class="collection__item" onclick={()=>{ 
                         if(selected == entry.asset_id.id){
-                          selected = null 
+                          push(`/collection/${name}`) 
                         }else{
-                          selected = entry.asset_id.id
+                          push(`/collection/${name}/${entry.asset_id.id}`)
                         }
 
                     }}>
@@ -155,7 +161,7 @@ let showTitle = $derived(!window.location.href.includes('collections'));
     {:else}
                                   
         <div style="display: flex; flex-direction: column; gap: 20px;">
-            <Asset params={{ id: selected }} onSelect={()=>{ console.log("Collection:click:asset", selected); selected = null; showMetrics = false;}} />
+            <Asset params={{ id: selected }} onSelect={()=>{ console.log("Collection:click:asset", selected); push(`/collection/${name}`); showMetrics = false;}} onUpdate={handleUpdate} />
             
             {#if isExperimental}
                 <div style="display: flex; justify-content: center; margin-top: 10px;">
