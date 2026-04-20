@@ -14,6 +14,7 @@
   import CollectionImagePicker from './CollectionImagePicker.svelte';
   import ImageSourcePicker from './ImageSourcePicker.svelte';
   import TextInput from './TextInput.svelte';
+  import VideoAsset from './VideoAsset.svelte';
   import { longpress } from './actions/longpress.js';
 
 
@@ -489,14 +490,42 @@
        {#if !minimal}<div class="generated-images-header">Asset</div>{/if}
       <div class="asset__image-container">
         {#if isVideo && isPlayingVideo}
-          <!-- svelte-ignore a11y_media_has_caption -->
-          <video
-            class="asset__image"
-            src={fixImageUrl(doc.image_url, doc.source)}
-            controls
-            autoplay
-            style="width: 100%; object-fit: contain; border-radius: 16px;"
-          ></video>
+          <VideoAsset {doc} onFrameSelect={async (file) => {
+            console.log("Frame captured:", file.name);
+            
+            // Look for the first image input to target
+            const targetInput = doc.inputs?.find(i => i?.type?.trim() === "image");
+            
+            if (!targetInput) {
+              console.error("No image input found in workflow to target with the extracted frame.");
+              return;
+            }
+            
+            try {
+              outputs.isLoading = true;
+              
+              // Upload the file
+              const result = await assetController.upload(file, doc.source, file.name);
+              console.log("Extracted frame uploaded:", result);
+              
+              // Construct path and invoke
+              const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+              const virtualPath = `virtual://${result.storageId}/${doc.source}/input/${releaseFolder}/${file.name}`;
+              
+              const response = await invokeController.prompt(doc.id, {
+                _id: targetInput._id,
+                field: targetInput.key,
+                value: virtualPath
+              });
+              
+              outputs.appendNotificationId(response.notification_id);
+              
+            } catch (error) {
+              console.error("Frame extraction upload/invoke error:", error);
+            } finally {
+              outputs.isLoading = false;
+            }
+          }} />
         {:else}
           <img
             class="asset__image"
