@@ -12,6 +12,9 @@
   let {
     results,
     isDetailOn,
+    activeId = undefined,
+    onAssetOpen = (id: any) => {},
+    onAssetClose = () => {},
     onUpdate = () => {},
     onSelect = () => {},
   } = $props();
@@ -58,6 +61,7 @@
     console.log(
       "[KeyboardNav] goToNext: Navigated to asset id=" + nextResult.id,
     );
+    onAssetOpen(nextResult.id);
   }
 
   function goToPrev() {
@@ -85,6 +89,7 @@
     console.log(
       "[KeyboardNav] goToPrev: Navigated to asset id=" + prevResult.id,
     );
+    onAssetOpen(prevResult.id);
   }
 
   function closeAsset() {
@@ -94,6 +99,7 @@
       result: showSingle.result,
       display: false,
     });
+    onAssetClose();
     onSelect(showSingle.result);
   }
 
@@ -315,11 +321,12 @@
 
     // If clicking the same item, toggle. If clicking a different item, ensure it opens.
     const isSameItem = showSingle.id === r.id;
+    const newDisplay = isSameItem ? !showSingle.display : true;
 
     showSingle.update({
       id: r.id,
       result: r,
-      display: isSameItem ? !showSingle.display : true,
+      display: newDisplay,
     });
     // Find the index of the clicked item in filteredResults
     currentIndex = filteredResults.findIndex((item) => item.id === r.id);
@@ -330,6 +337,12 @@
         ", total results=" +
         filteredResults.length,
     );
+    
+    if (newDisplay) {
+        onAssetOpen(r.id);
+    } else {
+        onAssetClose();
+    }
   }
   function grabFocus(el) {
     console.log("grabFocus", el);
@@ -382,6 +395,27 @@
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
+    }
+  });
+
+  $effect(() => {
+    if (activeId && (!showSingle.display || showSingle.id !== activeId)) {
+      const result = filteredResults.find((r: any) => r.id === activeId);
+      if (result) {
+        showSingle.update({
+          id: result.id,
+          result: result,
+          display: true
+        });
+        currentIndex = filteredResults.findIndex((item: any) => item.id === result.id);
+        if (currentIndex === -1) currentIndex = 0;
+      }
+    } else if (!activeId && showSingle.display) {
+        showSingle.update({
+          id: showSingle.id,
+          result: showSingle.result,
+          display: false
+        });
     }
   });
 </script>

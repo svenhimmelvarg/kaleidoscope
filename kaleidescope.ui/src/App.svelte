@@ -21,6 +21,7 @@ const client = useConvexClient()
     '/': Search,
     '/search' : Search,
     '/search/:filter' : Search,
+    '/search/:filter/:id' : Search,
     '/collections' : Collections,
     '/collection/:name' : Collection,
     '/collection/:name/:id' : Collection,

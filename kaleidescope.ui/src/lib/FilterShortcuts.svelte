@@ -206,7 +206,11 @@
   }
   function handleClearFilter() {
     const qs = $querystring ? `?${$querystring}` : '';
-    push(`/search${qs}`);
+    if (params?.id) {
+      push(`/search/all/${params.id}${qs}`);
+    } else {
+      push(`/search${qs}`);
+    }
   }
 
   function isShortcutActive(shortcut: any): boolean {

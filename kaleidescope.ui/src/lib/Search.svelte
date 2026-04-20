@@ -62,8 +62,8 @@
   let isLoading = $state(false)
 
   // Initialize Meilisearch client
-  
-  function updateUrl() {
+
+  function updateUrl(options: { dropId?: boolean, forceId?: string } = {}) {
     const searchParams = new URLSearchParams();
     if (searchState.q) {
       searchParams.set('q', searchState.q);
@@ -73,9 +73,32 @@
     }
     
     const qs = searchParams.toString();
-    const currentPath = params?.filter ? `/search/${params.filter}` : '/search';
+    let currentPath = '/search';
+    
+    let filterPart = params?.filter;
+    if (!filterPart || filterPart === 'all') {
+      filterPart = 'all';
+    }
+
+    const targetId = options.dropId ? null : (options.forceId || params?.id);
+
+    if (targetId) {
+      currentPath += `/${filterPart}/${targetId}`;
+    } else {
+      if (filterPart !== 'all') {
+        currentPath += `/${filterPart}`;
+      }
+    }
     
     replace(`${currentPath}${qs ? `?${qs}` : ''}`);
+  }
+
+  function onAssetOpen(id: string) {
+    updateUrl({ forceId: id });
+  }
+
+  function onAssetClose() {
+    updateUrl({ dropId: true });
   }
 
   function addFilter( kv : {attribute: string, value: string}){
@@ -106,7 +129,11 @@
 
     if (isRouteFilter) {
       const qs = $querystring ? `?${$querystring}` : '';
-      push(`/search${qs}`);
+      if (params?.id) {
+        push(`/search/all/${params.id}${qs}`);
+      } else {
+        push(`/search${qs}`);
+      }
     } else {
       searchState.customFilters = searchState.customFilters.filter(
         (f: any) => {
@@ -315,7 +342,7 @@
 
   let facetCollapsed = $state(true)
   // search() 
-  let hideElements = $state(false )
+  let hideElements = $derived(!!params?.id)
 </script>
 
 <div class="layout"> 
@@ -330,7 +357,7 @@
         <SearchResultList {results} />
         {:else}
         <!-- {JSON.stringify(searchState)} -->
-        <SearchResultGrid {results} {isDetailOn} onUpdate={addFilter} onSelect={() =>  hideElements = !hideElements  }/>
+        <SearchResultGrid {results} {isDetailOn} activeId={params?.id} {onAssetOpen} {onAssetClose} onUpdate={addFilter} />
         {#if hasWorkflowIdFilter || hasDateFilter}
           {#if $isExperimental}
           <div style="text-align: center; margin-top: 1rem;">
