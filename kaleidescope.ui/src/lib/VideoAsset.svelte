@@ -9,6 +9,9 @@
   let currentTime = $state(0);
   let duration = $state(0);
   let scrubberContainer = $state();
+  
+  let thumbnails = $state([]);
+  let isGeneratingThumbnails = $state(false);
 
   // Handle time updates
   function handleTimeUpdate() {
@@ -21,6 +24,57 @@
     if (videoNode) {
       duration = videoNode.duration;
     }
+  }
+
+  async function generateThumbnails() {
+    if (!videoNode || isGeneratingThumbnails) return;
+    isGeneratingThumbnails = true;
+    thumbnails = [];
+
+    const numThumbnails = 8;
+    const dur = videoNode.duration;
+    if (!dur) {
+        isGeneratingThumbnails = false;
+        return;
+    }
+
+    const offscreenVideo = document.createElement('video');
+    offscreenVideo.src = videoNode.src;
+    offscreenVideo.crossOrigin = "anonymous";
+    offscreenVideo.muted = true;
+    
+    // Wait for metadata
+    await new Promise(resolve => {
+      offscreenVideo.addEventListener('loadedmetadata', () => resolve(null), { once: true });
+    });
+
+    const canvas = document.createElement('canvas');
+    const targetWidth = 60;
+    const aspect = offscreenVideo.videoWidth / offscreenVideo.videoHeight || 1;
+    canvas.width = targetWidth;
+    canvas.height = targetWidth / aspect;
+    const ctx = canvas.getContext('2d');
+
+    const step = dur / numThumbnails;
+
+    for (let i = 0; i < numThumbnails; i++) {
+      const time = i * step + (step / 2); // get middle of segment
+      offscreenVideo.currentTime = time;
+      
+      await new Promise(resolve => {
+        const onSeeked = () => {
+          offscreenVideo.removeEventListener('seeked', onSeeked);
+          resolve(null);
+        };
+        offscreenVideo.addEventListener('seeked', onSeeked);
+      });
+
+      if (ctx) {
+        ctx.drawImage(offscreenVideo, 0, 0, canvas.width, canvas.height);
+        thumbnails = [...thumbnails, canvas.toDataURL('image/jpeg', 0.5)];
+      }
+    }
+    isGeneratingThumbnails = false;
   }
 
   // Scrubber dragging logic
@@ -78,10 +132,15 @@
       if (!blob) return;
       
       // Calculate SHA-256 hash
-      const buffer = await blob.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      let hashHex = "";
+      if (window.crypto && crypto.subtle) {
+        const buffer = await blob.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      } else {
+        hashHex = Math.random().toString(16).substring(2, 15) + Math.random().toString(16).substring(2, 15);
+      }
       
       // Create file and pass to callback
       const file = new File([blob], `${hashHex}.jpg`, { type: 'image/jpeg' });
@@ -114,7 +173,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div 
       class="scrubber-toggle"
-      onclick={(e) => { e.stopPropagation(); showScrubber = true; }}
+      onclick={(e) => { e.stopPropagation(); showScrubber = true; generateThumbnails(); }}
       title="Open Scrubber & Frame Extractor"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -141,10 +200,17 @@
         bind:this={scrubberContainer}
         onpointerdown={handlePointerDown}
       >
-        <div class="scrubber-track">
+        <div class="scrubber-filmstrip">
+          {#if thumbnails.length === 0}
+            <div class="filmstrip-placeholder">Loading frames...</div>
+          {:else}
+            {#each thumbnails as thumb}
+              <img src={thumb} class="filmstrip-frame" draggable="false" alt="frame" />
+            {/each}
+          {/if}
           <div 
-            class="scrubber-fill" 
-            style="width: {duration ? (currentTime / duration) * 100 : 0}%"
+            class="scrubber-playhead" 
+            style="left: {duration ? (currentTime / duration) * 100 : 0}%"
           ></div>
         </div>
       </div>
@@ -194,8 +260,8 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
-    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+    height: 80px;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
     border-bottom-left-radius: 16px;
     border-bottom-right-radius: 16px;
     display: flex;
@@ -227,27 +293,55 @@
 
   .scrubber-track-container {
     width: 100%;
-    height: 24px;
+    height: 48px;
     display: flex;
     align-items: center;
     cursor: pointer;
+    position: relative;
+    padding: 4px 0;
   }
 
-  .scrubber-track {
+  .scrubber-filmstrip {
     width: 100%;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
+    height: 100%;
+    display: flex;
     position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
     overflow: hidden;
   }
 
-  .scrubber-fill {
-    position: absolute;
-    top: 0;
-    left: 0;
+  .filmstrip-placeholder {
+    width: 100%;
     height: 100%;
-    background: #FF2B63; /* Pinkish red matching the screenshot */
-    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+    font-size: 12px;
+  }
+
+  .filmstrip-frame {
+    flex: 1;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    border-right: 1px solid rgba(0, 0, 0, 0.5);
+  }
+
+  .filmstrip-frame:last-child {
+    border-right: none;
+  }
+
+  .scrubber-playhead {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 4px;
+    background: #ffffff;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(0,0,0,0.8);
+    pointer-events: none;
   }
 </style>
