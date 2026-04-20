@@ -1,7 +1,6 @@
 from __future__ import annotations
 from graph import *
-from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
+from typing import List
 import argparse
 import json
 import requests
@@ -10,7 +9,8 @@ import datetime
 from math import gcd
 from PIL import Image
 from dotenv import dotenv_values
-import os
+import subprocess
+from functools import lru_cache
 
 env_file = os.environ.get("OP_ENV_FILE", ".env")
 config = dotenv_values(env_file)
@@ -937,6 +937,32 @@ def fn_get_res(data, ctx):
     return res
 
 
+@lru_cache(maxsize=100)
+def extract_mp4_metadata(source_path: str) -> dict:
+    """Extract metadata tags from an MP4 file using ffprobe."""
+    if not source_path or not os.path.exists(source_path):
+        return {}
+
+    try:
+        cmd = [
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            source_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+
+        # Tags are usually under format.tags
+        return data.get("format", {}).get("tags", {})
+    except Exception as e:
+        log("extract_mp4_metadata", f"Error extracting metadata from {source_path}: {e}")
+        return {}
+
+
 def fn_get_elapsed_ms(data, ctx):
     """Extract elapsed_ms from PNG metadata.
 
@@ -953,13 +979,20 @@ def fn_get_elapsed_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
-    if source_path and source_path.lower().endswith(".mp4"):
-        return None
     if not source_path:
         log("fn_get_elapsed_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
     if not os.path.exists(source_path):
         log("fn_get_elapsed_ms", f"File not found: {source_path}")
+        return None
+
+    if source_path.lower().endswith(".mp4"):
+        tags = extract_mp4_metadata(source_path)
+        if "elapsed_ms" in tags:
+            try:
+                return int(float(tags["elapsed_ms"]))
+            except ValueError:
+                return None
         return None
 
     try:
@@ -1000,13 +1033,20 @@ def fn_get_wait_time_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
-    if source_path and source_path.lower().endswith(".mp4"):
-        return None
     if not source_path:
         log("fn_get_wait_time_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
     if not os.path.exists(source_path):
         log("fn_get_wait_time_ms", f"File not found: {source_path}")
+        return None
+
+    if source_path.lower().endswith(".mp4"):
+        tags = extract_mp4_metadata(source_path)
+        if "wait_time_ms" in tags:
+            try:
+                return int(float(tags["wait_time_ms"]))
+            except ValueError:
+                return None
         return None
 
     try:
@@ -1049,13 +1089,17 @@ def fn_get_parent_id(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
-    if source_path and source_path.lower().endswith(".mp4"):
-        return None
     if not source_path:
         log("fn_get_parent_id", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
     if not os.path.exists(source_path):
         log("fn_get_parent_id", f"File not found: {source_path}")
+        return None
+
+    if source_path.lower().endswith(".mp4"):
+        tags = extract_mp4_metadata(source_path)
+        if "parent_id" in tags:
+            return str(tags["parent_id"])
         return None
 
     try:
@@ -1089,13 +1133,20 @@ def fn_get_traced_elapsed_ms(data, ctx):
     from PIL import Image
 
     source_path = ctx.get("source_path")
-    if source_path and source_path.lower().endswith(".mp4"):
-        return None
     if not source_path:
         log("fn_get_traced_elapsed_ms", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
     if not os.path.exists(source_path):
         log("fn_get_traced_elapsed_ms", f"File not found: {source_path}")
+        return None
+
+    if source_path.lower().endswith(".mp4"):
+        tags = extract_mp4_metadata(source_path)
+        if "traced_elapsed_ms" in tags:
+            try:
+                return int(float(tags["traced_elapsed_ms"]))
+            except ValueError:
+                return None
         return None
 
     try:
@@ -1134,8 +1185,6 @@ def fn_get_trace(data, ctx):
     import json
 
     source_path = ctx.get("source_path")
-    if source_path and source_path.lower().endswith(".mp4"):
-        return None
     if not source_path:
         log("fn_get_trace", f"No source_path in ctx keys: {list(ctx.keys())}")
         return None
@@ -1143,11 +1192,21 @@ def fn_get_trace(data, ctx):
         log("fn_get_trace", f"File not found: {source_path}")
         return None
 
+    if source_path.lower().endswith(".mp4"):
+        tags = extract_mp4_metadata(source_path)
+        if "trace" in tags:
+            try:
+                return json.loads(tags["trace"])
+            except Exception as e:
+                log("fn_get_trace", f"Error parsing JSON from trace in MP4: {e}")
+                return None
+        return None
+
     try:
         with Image.open(source_path) as img:
             if hasattr(img, "text") and "trace" in img.text:
                 trace_str = img.text["trace"]
-                log("fn_get_trace", f"Found trace")
+                log("fn_get_trace", "Found trace")
                 return json.loads(trace_str)
             else:
                 log(
