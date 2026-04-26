@@ -2,5 +2,9 @@
   "experimental": {
     "defaultValue": true, 
     "rules": []
+  },
+  "show_hidden_toggle": {
+    "defaultValue": false,
+    "rules": []
   }
 }

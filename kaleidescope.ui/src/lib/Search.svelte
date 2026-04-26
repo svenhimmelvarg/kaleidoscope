@@ -19,8 +19,10 @@
   import { featureOn } from './growthbook';
   
   let isExperimental = featureOn("experimental");
-
  let { params = {} }  = $props()
+
+  let searchParamsObj = $derived(new URLSearchParams($querystring || ''));
+  let showHidden = $derived(searchParamsObj.get('show_hidden') === 'true');
 
   let results = $state({
     entries: [] as any[],
@@ -70,6 +72,14 @@
     }
     if (searchState.customFilters.length > 0) {
       searchParams.set('filters', JSON.stringify(searchState.customFilters));
+    }
+    
+    const currentParams = new URLSearchParams($querystring || '');
+    if (currentParams.get('show_hidden')) {
+      searchParams.set('show_hidden', currentParams.get('show_hidden')!);
+    }
+    if (currentParams.get('advanced')) {
+      searchParams.set('advanced', currentParams.get('advanced')!);
     }
     
     const qs = searchParams.toString();
@@ -154,6 +164,9 @@
     if (isDownvotedRoute) {
       // Remove default filters that hide downvoted content when explicitly searching for it
       defaultFilters = ["created EXISTS"];
+    } else if (showHidden) {
+      // Show ONLY hidden images
+      defaultFilters = ["created EXISTS", "(vote = -1 OR score < 0)"];
     }
 
     const dynamicFilters = searchState.filters.map((f: any) => {
@@ -340,6 +353,25 @@
     }
   })
 
+  // Fetch missing document if we have a direct link but it's not in the current page of results
+  $effect(() => {
+    if (params?.id && !isLoading && results.entries.length > 0) {
+      const found = results.entries.some(r => r.id === params.id);
+      if (!found) {
+        index.getDocument(params.id)
+          .then(doc => {
+            if (doc) {
+              console.log("Fetched missing document by ID:", doc);
+              results.entries = [doc, ...results.entries];
+            }
+          })
+          .catch(err => {
+            console.error("Failed to fetch missing document by ID:", err);
+          });
+      }
+    }
+  })
+
   let facetCollapsed = $state(true)
   // search() 
   let hideElements = $derived(!!params?.id)
@@ -353,6 +385,7 @@
     <div class="search-container">
       <div class="search-results">
         <FilterShortcuts {params} {onSearch} facets={results.facets} onRemoveFilter={removeFilter} onAddFilter={addFilter} />
+
         {#if isListView }
         <SearchResultList {results} />
         {:else}

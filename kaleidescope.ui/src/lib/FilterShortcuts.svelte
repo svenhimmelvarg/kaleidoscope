@@ -1,9 +1,12 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { push, querystring } from 'svelte-spa-router';
+  import { push, querystring, location } from 'svelte-spa-router';
   import { reduceFacetDistribution } from './functions/indexer_helpers.js';
   import { formatFacetValue } from './functions/convex_helpers.js';
   import { getWeekString } from './functions/date_helpers.js';
+  import { featureOn } from './growthbook';
+  
+  let showHiddenToggleFeature = featureOn("show_hidden_toggle");
   
   const searchState: any = getContext('searchState');
 
@@ -252,6 +255,41 @@
 
   let activeFilterLabel = $derived(getActiveFilterLabel());
 
+  let searchParamsObj = $derived(new URLSearchParams($querystring || ''));
+  let showAdvancedImageInputs = $derived(searchParamsObj.get('advanced') === 'true');
+  let showHidden = $derived(searchParamsObj.get('show_hidden') === 'true');
+
+  function toggleAdvanced() {
+    const sp = new URLSearchParams($querystring || '');
+    if (showAdvancedImageInputs) {
+      sp.delete('advanced');
+    } else {
+      sp.set('advanced', 'true');
+    }
+    const qs = sp.toString();
+    push(`${$location}${qs ? '?' + qs : ''}`);
+  }
+
+  function toggleShowHidden() {
+    const sp = new URLSearchParams($querystring || '');
+    if (showHidden) {
+      sp.delete('show_hidden');
+    } else {
+      sp.set('show_hidden', 'true');
+    }
+    const qs = sp.toString();
+    push(`${$location}${qs ? '?' + qs : ''}`);
+  }
+
+  let topInputImages = $derived((() => {
+    if (!facets || !facets['inputs.value']) return [];
+    return Object.entries(facets['inputs.value'])
+      .filter(([val]) => /\.(png|jpe?g|webp|gif|mp4|webm)$/i.test(val))
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .slice(0, 10)
+      .map(([val]) => val);
+  })());
+
   function handleSearchKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       onSearch?.((e.currentTarget as HTMLInputElement).value);
@@ -278,6 +316,32 @@
       onkeydown={handleSearchKeyDown}
     />
 
+    <button 
+      class="filter-shortcuts__icon-btn" 
+      class:active={showAdvancedImageInputs}
+      onclick={toggleAdvanced} 
+      title="Advanced Options"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polygon points="8,10 16,10 12,16" transform={showAdvancedImageInputs ? "rotate(180 12 13)" : ""}></polygon>
+      </svg>
+    </button>
+
+    {#if $showHiddenToggleFeature}
+      <button 
+        class="filter-shortcuts__icon-btn" 
+        class:active={showHidden}
+        onclick={toggleShowHidden} 
+        title="Show Hidden"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+        </svg>
+      </button>
+    {/if}
+
     {#if activeFilterLabel}
       <button
         class="filter-shortcuts__pill active"
@@ -300,6 +364,20 @@
       {/each}
     {/if}
   </div>
+
+  {#if showAdvancedImageInputs && topInputImages.length > 0}
+    <div class="filter-shortcuts__advanced-images">
+      {#each topInputImages as imageName}
+        <button 
+          class="advanced-image-btn"
+          onclick={() => onAddFilter({ attribute: 'inputs.value', value: imageName })}
+          title={imageName}
+        >
+          <img src={`/images/input/${imageName}`} alt={imageName} />
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if row2Shortcuts.length > 0}
     <div class="filter-shortcuts row-2">
@@ -377,5 +455,64 @@
   .filter-shortcuts__search:focus {
     border-color: rgba(60, 60, 67, 0.4);
     background-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .filter-shortcuts__icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    color: rgba(60, 60, 67, 0.6);
+    background-color: transparent;
+    border: 1px solid rgba(120, 120, 128, 0.16);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .filter-shortcuts__icon-btn:hover {
+    background-color: rgba(120, 120, 128, 0.08);
+    border-color: rgba(120, 120, 128, 0.24);
+    color: rgba(60, 60, 67, 0.8);
+  }
+  .filter-shortcuts__icon-btn.active {
+    background-color: rgba(52, 199, 89, 0.15);
+    border-color: rgba(52, 199, 89, 0.4);
+    color: #248a3d;
+  }
+
+  .filter-shortcuts__advanced-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0;
+    width: 100%;
+  }
+
+  .advanced-image-btn {
+    flex: 0 0 300px;
+    height: 120px;
+    padding: 0;
+    margin: 0;
+    border: 1px solid rgba(120, 120, 128, 0.16);
+    border-radius: 12px;
+    background-color: transparent;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .advanced-image-btn:hover {
+    border-color: rgba(120, 120, 128, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .advanced-image-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 </style>
