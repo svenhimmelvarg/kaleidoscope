@@ -43,6 +43,8 @@ def kaleidescope(port):
                 "uvicorn",
                 "kaleidescope.main:app",
                 "--reload",
+                "--reload-dir",
+                "kaleidescope",
                 "--host",
                 host,
                 "--port",
