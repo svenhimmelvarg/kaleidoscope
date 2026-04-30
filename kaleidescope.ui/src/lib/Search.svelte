@@ -16,9 +16,10 @@
   import FilterShortcuts from './FilterShortcuts.svelte';
   import { querystring, replace, push } from 'svelte-spa-router';
   import Metrics from './Metrics.svelte';
-  import { featureOn } from './growthbook';
+  import { featureOn, featureValue } from './growthbook';
   
   let isExperimental = featureOn("experimental");
+  let isIndexingExperimental = featureValue("experimental.indexing", false);
  let { params = {} }  = $props()
 
   let searchParamsObj = $derived(new URLSearchParams($querystring || ''));
@@ -198,6 +199,22 @@
         sort: [`${sortOptions.field}:${sortOptions.direction}`]
       };
       
+      if ($isIndexingExperimental && query.trim() !== "") {
+        try {
+          const embedRes = await fetch(`/api/embed?text=${encodeURIComponent(query)}`);
+          if (embedRes.ok) {
+            const embedData = await embedRes.json();
+            if (embedData.vector) {
+              searchOptions.vector = embedData.vector;
+              searchOptions.hybrid = { semanticRatio: 0.9, embedder: "default" };
+              searchOptions.showRankingScore = true;
+            }
+          }
+        } catch (e) {
+          console.error("Vector search failed, falling back to text search.", e);
+        }
+      }
+
       // Only add filter if there are any
       if (filters.length > 0) {
         searchOptions.filter = filters;
@@ -205,15 +222,21 @@
       console.log("Main::search:searchOptions",searchOptions, filters )
       const searchResponse = await index.search(query, searchOptions);
       console.log("Main::search:response",searchResponse)
-      console.log("Main::search",searchResponse.hits)
+      
+      let validHits = searchResponse.hits;
+      if ($isIndexingExperimental && query.trim() !== "" && searchOptions.showRankingScore) {
+        validHits = validHits.filter((hit: any) => hit._rankingScore >= 0.60);
+      }
+      
+      console.log("Main::search",validHits)
       console.log("Main::search:facets",searchResponse.facetDistribution, index)
       
       if (append) {
         // Append new results to existing ones
-        results.entries = [...results.entries, ...searchResponse.hits];
+        results.entries = [...results.entries, ...validHits];
       } else {
         // Replace results for new searches
-        results.entries = searchResponse.hits;
+        results.entries = validHits;
         results.facets = searchResponse.facetDistribution || {};
         collapsed = [...Object.keys(results.facets)]
       }

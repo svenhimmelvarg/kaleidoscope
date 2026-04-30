@@ -11,6 +11,7 @@
 
 	import { getConvexUrl, getMeilisearchUrl } from './lib/functions/convex_helpers.js';
   import { getWeekString } from './lib/functions/date_helpers.js';
+  import { gb } from './lib/growthbook';
   
  const PUBLIC_CONVEX_URL = import.meta.env.DEV ? window.location.origin : `http://${getConvexUrl()}`;
 
@@ -32,10 +33,11 @@ const client = useConvexClient()
 
 
 
-const indexName = import.meta.env.VITE_INDEX_NAME
+const baseIndexName = import.meta.env.VITE_INDEX_NAME
+const indexName = gb.getFeatureValue("experimental.indexing", false) ? `${baseIndexName}_ENHANCED` : baseIndexName;
 
 const searchState = $state({
-  indexName: import.meta.env.VITE_INDEX_NAME,
+  indexName: indexName,
   q: '',
   routeFilters: [] as any[],
   customFilters: [] as any[],

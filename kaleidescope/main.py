@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from contextlib import asynccontextmanager
 from kaleidescope.config import load_config
 from kaleidescope.utils.logging import setup_logging
-from kaleidescope.api import workflow, notifications, download, publish
+from kaleidescope.api import workflow, notifications, download, publish, embed
 import logging
 from pathlib import Path
 import os
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router)
     app.include_router(download.router)
     app.include_router(publish.router)
+    app.include_router(embed.router)
 
     # Static files setup
     STATIC_DIR = Path(__file__).parent / "static"

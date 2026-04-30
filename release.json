@@ -3,6 +3,10 @@
     "defaultValue": true, 
     "rules": []
   },
+  "experimental.indexing": {
+    "defaultValue": true,
+    "rules": []
+  },
   "show_hidden_toggle": {
     "defaultValue": false,
     "rules": []

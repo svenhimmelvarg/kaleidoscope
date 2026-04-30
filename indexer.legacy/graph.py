@@ -12,6 +12,30 @@ from dotenv import dotenv_values
 import subprocess
 from functools import lru_cache
 
+_model = None
+
+def get_model():
+    global _model
+    if _model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            model_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+            os.makedirs(model_dir, exist_ok=True)
+            _model = SentenceTransformer('clip-ViT-B-32', cache_folder=model_dir)
+        except Exception as e:
+            print(f"Failed to load sentence-transformer model: {e}")
+            _model = False # Set to false to avoid repeated attempts
+    return _model if _model is not False else None
+
+def is_experimental_indexing_enabled():
+    try:
+        release_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "release.json")
+        with open(release_path, "r") as f:
+            data = json.load(f)
+            return data.get("experimental.indexing", {}).get("defaultValue", False)
+    except Exception:
+        return False
+
 env_file = os.environ.get("OP_ENV_FILE", ".env")
 config = dotenv_values(env_file)
 
@@ -99,6 +123,8 @@ effective_data_dir = args.data_dir or config.get("DATA_DIR", "./data")
 
 index_name_from_config = config.get("INDEX_NAME")
 effective_index_name = args.indexer_name or index_name_from_config
+if is_experimental_indexing_enabled():
+    effective_index_name = f"{effective_index_name}_ENHANCED"
 
 if not effective_index_name:
     raise ValueError(
@@ -542,6 +568,27 @@ def meillisearch_filter_fields(base_url, index_name, filterable_fields):
         return None
 
 
+def meillisearch_configure_embedders(base_url, index_name):
+    """Configure embedders for vector search"""
+    try:
+        response = requests.patch(
+            f"{base_url}/indexes/{index_name}/settings/embedders",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer password",
+            },
+            json={
+                "default": {
+                    "source": "userProvided",
+                    "dimensions": 512
+                }
+            },
+        )
+        response.raise_for_status()
+        log("meillisearch_configure_embedders", "Embedders configured successfully")
+    except requests.exceptions.RequestException as e:
+        log("meillisearch_configure_embedders", f"Error configuring embedders: {e}")
+
 def meillisearch_write(base_url, index_name, doc):
     """Write a single document to Meilisearch index"""
     try:
@@ -796,6 +843,8 @@ def sink(outputs):
             "content_type",
         ],
     )
+    if is_experimental_indexing_enabled():
+        meillisearch_configure_embedders(url, effective_index_name)
     print(" * Write to search index")
     sink_count = 0
     dead_count = 0
@@ -871,6 +920,18 @@ def sink(outputs):
             else:
                 d1["time_bucket"] = "long"
 
+        # Add vector embedding if enabled
+        if is_experimental_indexing_enabled() and d1["type"] == "image":
+            model = get_model()
+            if model:
+                try:
+                    from PIL import Image
+                    image = Image.open(source_path)
+                    vector = model.encode(image).tolist()
+                    d1["_vectors"] = {"default": vector}
+                except Exception as e:
+                    print(f"Failed to generate vector for {doc['id']}: {e}")
+
         meillisearch_write(url, effective_index_name, d1)
 
         # Generate thumbnail proactively
@@ -901,7 +962,7 @@ def sink(outputs):
     print(f"processed:  {sink_count}")
     print(f"dead count:  {dead_count}")
     if sink_count > 0:
-        print(json.dumps(d1, indent=2))
+        print(json.dumps(d1, indent=2)[:200])
 
 
 def fn_write_keys(data, ctx):

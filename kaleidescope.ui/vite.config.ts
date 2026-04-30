@@ -37,6 +37,9 @@ export default defineConfig({
       '/images': {
         target: process.env.VITE_KALEIDESCOPE_API_URL
       },
+      '/api/embed': {
+        target: process.env.VITE_KALEIDESCOPE_API_URL
+      },
       '/api': {
         target: process.env.VITE_CONVEX_URL,
         changeOrigin: true,
