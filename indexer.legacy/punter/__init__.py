@@ -187,12 +187,35 @@ def walk(path, limit=None):
     while len(paths) > 0:
         path = paths.pop()
         if os.path.isdir(path):
-            for f in os.listdir(path):
-                f = f"{path}/{f}"
-                if os.path.isdir(f):
-                    paths.append(f)
-                if os.path.isfile(f):
+            try:
+                entries = []
+                for f in os.listdir(path):
+                    entries.append(f"{path}/{f}")
+                
+                files_with_mtime = []
+                dirs_with_mtime = []
+                
+                for entry in entries:
+                    try:
+                        mtime = os.path.getmtime(entry)
+                        if os.path.isdir(entry):
+                            dirs_with_mtime.append((mtime, entry))
+                        elif os.path.isfile(entry):
+                            files_with_mtime.append((mtime, entry))
+                    except OSError:
+                        pass
+                
+                # Yield files newest first
+                files_with_mtime.sort(key=lambda x: x[0], reverse=True)
+                for _, f in files_with_mtime:
                     yield f
+                    
+                # Append directories oldest first (LIFO stack will pop newest first)
+                dirs_with_mtime.sort(key=lambda x: x[0], reverse=False)
+                for _, d in dirs_with_mtime:
+                    paths.append(d)
+            except OSError:
+                pass
         elif os.path.isfile(path):
             yield path
 

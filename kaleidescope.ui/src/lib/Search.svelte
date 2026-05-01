@@ -179,6 +179,19 @@
     console.log("Search:buildFilters", searchState.filters, combinedFilters);
     return combinedFilters;
   }
+  function cosineSimilarity(vecA: number[], vecB: number[]) {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+      dotProduct += vecA[i] * vecB[i];
+      normA += vecA[i] * vecA[i];
+      normB += vecB[i] * vecB[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
   async function search(append: boolean = false) {
     const query  = searchState.q || "";
     const filters = buildFilters();
@@ -199,15 +212,15 @@
         sort: [`${sortOptions.field}:${sortOptions.direction}`]
       };
       
+      let queryVector: number[] | null = null;
       if ($isIndexingExperimental && query.trim() !== "") {
         try {
           const embedRes = await fetch(`/api/embed?text=${encodeURIComponent(query)}`);
           if (embedRes.ok) {
             const embedData = await embedRes.json();
             if (embedData.vector) {
-              searchOptions.vector = embedData.vector;
-              searchOptions.hybrid = { semanticRatio: 0.9, embedder: "default" };
-              searchOptions.showRankingScore = true;
+              queryVector = embedData.vector;
+              searchOptions.attributesToRetrieve = ['*'];
             }
           }
         } catch (e) {
@@ -224,9 +237,23 @@
       console.log("Main::search:response",searchResponse)
       
       let validHits = searchResponse.hits;
-      if ($isIndexingExperimental && query.trim() !== "" && searchOptions.showRankingScore) {
+      
+      // DISABLED FOR DEBUGGING: Vector Similarity Sort temporarily disabled.
+      // Uncomment the block below to re-enable client-side semantic vector sorting.
+      /*
+      if ($isIndexingExperimental && queryVector && query.trim() !== "") {
+        validHits = validHits.map((hit: any) => {
+          let score = 0;
+          if (hit.vector_embedding) {
+            score = cosineSimilarity(queryVector!, hit.vector_embedding);
+          }
+          return { ...hit, _rankingScore: score };
+        });
+        
         validHits = validHits.filter((hit: any) => hit._rankingScore >= 0.60);
+        validHits.sort((a: any, b: any) => b._rankingScore - a._rankingScore);
       }
+      */
       
       console.log("Main::search",validHits)
       console.log("Main::search:facets",searchResponse.facetDistribution, index)

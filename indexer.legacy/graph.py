@@ -11,8 +11,102 @@ from PIL import Image
 from dotenv import dotenv_values
 import subprocess
 from functools import lru_cache
+import base64
 
 _model = None
+_nlp = None
+
+def get_nlp():
+    global _nlp
+    if _nlp is None:
+        try:
+            import spacy
+            _nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            print(f"Failed to load spacy model: {e}")
+            _nlp = False
+    return _nlp if _nlp is not False else None
+
+def extract_hypernym_lineages(text):
+    nlp = get_nlp()
+    if not nlp:
+        return []
+    
+    from nltk.corpus import wordnet as wn
+    
+    doc = nlp(text)
+    categories = []
+    
+    for token in doc:
+        if token.pos_ == "NOUN":
+            noun = token.text.lower()
+            categories.append(noun)
+            
+            synsets = wn.synsets(noun, pos=wn.NOUN)
+            if not synsets:
+                continue
+                
+            # Take the first synset (most common meaning)
+            synset = synsets[0]
+            
+            # Go back up traversing hypernyms
+            current_synsets = [synset]
+            while current_synsets:
+                next_synsets = []
+                for s in current_synsets:
+                    hypernyms = s.hypernyms()
+                    for h in hypernyms:
+                        # Check descendants to avoid extremely general nodes
+                        # Note: computing this can be slightly expensive, so we do it dynamically
+                        # but in a real-world scenario we might pre-compute or cache it.
+                        num_hyponyms = len(list(h.closure(lambda x: x.hyponyms())))
+                        if num_hyponyms > 5000:
+                            continue # Skip this hypernym and its ancestors
+                            
+                        # Extract the base word from the synset name (e.g., 'dog.n.01' -> 'dog')
+                        name = h.name().split('.')[0].replace('_', ' ')
+                        if name not in categories:
+                            categories.append(name)
+                        next_synsets.append(h)
+                current_synsets = next_synsets
+                
+    return list(set(categories))
+
+def get_caption_from_smolvlm(image_path):
+    import time
+    start_time = time.time()
+    try:
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            
+        data_uri = f"data:image/jpeg;base64,{encoded_string}"
+        
+        payload = {
+            "model": "smolvlm",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "describe this image in great detail focusing on the concrete subjects, objects, and setting."},
+                        {"type": "image_url", "image_url": {"url": data_uri}}
+                    ]
+                }
+            ],
+            "max_tokens": 500
+        }
+        
+        response = requests.post("http://localhost:10000/v1/chat/completions", json=payload, timeout=30)
+        response.raise_for_status()
+        
+        result = response.json()
+        elapsed_time = time.time() - start_time
+        print(f"caption_elapsed_time: {elapsed_time:.2f}s")
+        return result['choices'][0]['message']['content']
+    except Exception as e:
+        elapsed_time = time.time() - start_time
+        print(f"Error getting caption from SmolVLM: {e}")
+        print(f"caption_elapsed_time: {elapsed_time:.2f}s")
+        return ""
 
 def get_model():
     global _model
@@ -233,8 +327,15 @@ def fn_hash_workflow_json(data, ctx):
     """Generate SHA-256 hash of the given data"""
     import hashlib
 
-    # Convert data to string and encode to bytes
-    data = json.loads(data)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            pass
+
+    if not isinstance(data, dict):
+        return hashlib.sha256(str(data).encode("utf-8")).hexdigest()
+
     hashable_doc = {}
     for k, v in data.items():
         if "is_changed" in v:
@@ -808,6 +909,8 @@ def sink(outputs):
         url,
         effective_index_name,
         [
+            "categories",
+            "caption",
             "loras",
             "models",
             "schedulers",
@@ -922,6 +1025,15 @@ def sink(outputs):
 
         # Add vector embedding if enabled
         if is_experimental_indexing_enabled() and d1["type"] == "image":
+            # Semantic Lineage Indexing
+            print(f"Generating semantic lineage for {doc['id']}...")
+            caption = get_caption_from_smolvlm(source_path)
+            if caption:
+                d1["caption"] = caption
+                categories = extract_hypernym_lineages(caption)
+                if categories:
+                    d1["categories"] = categories
+            
             model = get_model()
             if model:
                 try:
@@ -929,6 +1041,7 @@ def sink(outputs):
                     image = Image.open(source_path)
                     vector = model.encode(image).tolist()
                     d1["_vectors"] = {"default": vector}
+                    d1["vector_embedding"] = vector
                 except Exception as e:
                     print(f"Failed to generate vector for {doc['id']}: {e}")
 
@@ -970,7 +1083,14 @@ def fn_write_keys(data, ctx):
 
 
 def fn_get_res(data, ctx):
-    x, y = data
+    if isinstance(data, dict) and "message" in data:
+        return {"error": data["message"]}
+    
+    try:
+        x, y = data
+    except (ValueError, TypeError):
+        return {"error": "Invalid size data"}
+
     res = {}
 
     # Calculate megapixels
@@ -1317,14 +1437,8 @@ for r, file_path in get_media(
             f_name = cache_write(r["_id"], "output.json", output)
             print(f_name)
         except Exception as e:
-            import traceback
-
-            if "id" in r:
-                print(f" {r['id']} - {e} - Current Count: {count}")
-            else:
-                print(f"error - {e}")
-            print("Traceback:")
-            traceback.print_exc()
+            file_identifier = r.get('id', 'unknown id')
+            print(f"Skipping problematic image: {file_identifier} - Error: {e}")
             continue
     output["source_path"] = file_path
     output["id"] = r["_id"]

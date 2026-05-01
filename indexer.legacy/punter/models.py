@@ -1,18 +1,20 @@
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import List, Optional, Any
+from pydantic import BaseModel, ConfigDict
 
 
 class TextItem(BaseModel):
     _id: str
     value: str
 
+    model_config = ConfigDict(extra="allow")
+
 
 class Workflow(BaseModel):
     id: str
-    text: List[TextItem]
-    models: List[str]
+    text: Optional[List[TextItem]] = None
+    models: Optional[List[str]] = None
     image_url: str
-    loras: Optional[List[str]] = None
+    loras: Optional[List[Any]] = None
     schedulers: Optional[List[str]] = None
     workflow_structure_id: Optional[str] = None
     workflow_structure_signature_id: Optional[str] = None
@@ -28,3 +30,8 @@ class Workflow(BaseModel):
     orientation: Optional[str] = None
     width: Optional[int] = None
     height: Optional[int] = None
+    categories: Optional[List[str]] = None
+    caption: Optional[str] = None
+    vector_embedding: Optional[List[float]] = None
+
+    model_config = ConfigDict(extra="allow")
