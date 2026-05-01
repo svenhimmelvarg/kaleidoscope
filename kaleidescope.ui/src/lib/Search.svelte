@@ -17,6 +17,7 @@
   import { querystring, replace, push } from 'svelte-spa-router';
   import Metrics from './Metrics.svelte';
   import { featureOn, featureValue } from './growthbook';
+  import { groupByDateAndIntelligence } from './functions/grouping_helpers';
   
   let isExperimental = featureOn("experimental");
   let isIndexingExperimental = featureValue("experimental.indexing", false);
@@ -65,6 +66,28 @@
   let isLoading = $state(false)
 
   // Initialize Meilisearch client
+
+  let isRelevancyMode = $derived(!!(searchState.q && searchState.q.trim() !== ""));
+
+  let renderItems = $derived.by(() => {
+    let currentItems = results.entries.filter((r) => r.created !== undefined && r.created !== null);
+    if (!isRelevancyMode) {
+      currentItems = currentItems.sort((a, b) => b.created - a.created);
+    }
+    return currentItems;
+  });
+
+  let renderGroups = $derived.by(() => {
+    if (isRelevancyMode) {
+      return [{
+        header: null,
+        dateKey: 'relevancy',
+        groupedItems: { ungrouped: renderItems }
+      }];
+    } else {
+      return groupByDateAndIntelligence(renderItems, false);
+    }
+  });
 
   function updateUrl(options: { dropId?: boolean, forceId?: string } = {}) {
     const searchParams = new URLSearchParams();
@@ -209,8 +232,12 @@
         facets: searchState.facets,
         offset: results.offset,
         limit: results.limit,
-        sort: [`${sortOptions.field}:${sortOptions.direction}`]
+        showMatchesPosition: query.trim() !== ""
       };
+
+      if (!isRelevancyMode) {
+        searchOptions.sort = [`${sortOptions.field}:${sortOptions.direction}`];
+      }
       
       let queryVector: number[] | null = null;
       if ($isIndexingExperimental && query.trim() !== "") {
@@ -238,22 +265,90 @@
       
       let validHits = searchResponse.hits;
       
-      // DISABLED FOR DEBUGGING: Vector Similarity Sort temporarily disabled.
-      // Uncomment the block below to re-enable client-side semantic vector sorting.
-      /*
-      if ($isIndexingExperimental && queryVector && query.trim() !== "") {
-        validHits = validHits.map((hit: any) => {
-          let score = 0;
-          if (hit.vector_embedding) {
-            score = cosineSimilarity(queryVector!, hit.vector_embedding);
-          }
-          return { ...hit, _rankingScore: score };
-        });
+      if (query.trim() !== "") {
+        const hasQuotes = query.includes('"');
         
-        validHits = validHits.filter((hit: any) => hit._rankingScore >= 0.60);
-        validHits.sort((a: any, b: any) => b._rankingScore - a._rankingScore);
+        validHits = validHits.filter((hit: any) => {
+          // Prepare match data first so we can log it cleanly
+          const matchesPos = hit._matchesPosition || {};
+          const matchKeys = Object.keys(matchesPos);
+          
+          const matchesCategories = !!(matchesPos.categories && matchesPos.categories.length > 0);
+          const matchesCaption = !!(matchesPos.caption && matchesPos.caption.length > 0);
+          
+          // Check if there are matches in any field OTHER than caption/categories (e.g. text, loras, models)
+          const matchesOtherFields = matchKeys.some(key => 
+            !['caption', 'categories'].includes(key) && matchesPos[key] && matchesPos[key].length > 0
+          );
+          
+          const hasAnyMatch = matchesCategories || matchesCaption || matchesOtherFields;
+
+          // 1. Calculate Vector Score
+          let score = 0;
+          let hasVector = false;
+          if ($isIndexingExperimental && queryVector && hit.vector_embedding) {
+            score = cosineSimilarity(queryVector, hit.vector_embedding);
+            hit._rankingScore = score;
+            hasVector = true;
+          }
+
+          // Helper function to log matches clearly
+          const logMatch = (tier: string) => {
+            console.log(`Search::hybrid-filter - tier [${tier}] match`, {
+              tier,
+              id: hit.id,
+              matchesCategories,
+              matchesCaption,
+              matchesOtherFields,
+              score: score.toFixed(4),
+              hasVector: hasVector,
+              hasQuotes: hasQuotes,
+              vectorLength: hit.vector_embedding ? hit.vector_embedding.length : 0
+            });
+          };
+
+          // --- QUOTES MODE: Strict Lexical Search (Tier 3) ---
+          if (hasQuotes) {
+            if (hasAnyMatch) {
+              logMatch("Quotes Exact Match");
+              return true;
+            }
+            return false;
+          }
+
+          // --- NORMAL MODE: Hybrid Search ---
+          // Fallback if Meilisearch returned no positions for some reason
+          if (matchKeys.length === 0) {
+            logMatch("0 (No Positions)");
+            return true; 
+          }
+
+          // 2. High Semantic Match (Tier 1) - lowered threshold to 0.25 based on embedding model
+          if (hasVector && score >= 0.25) {
+            logMatch("1");
+            return true;
+          }
+
+          // 3. Strong Lexical Match in Descriptive Metadata (Tier 2)
+          if (matchesCategories || matchesCaption) {
+            logMatch("2");
+            return true;
+          }
+
+          // Reject unfulfilled intent (matched on other fields like prompt, but low semantic score)
+          console.log(`Search::hybrid-filter - REJECTED (Matched other fields, no quotes, low score)`, {
+             id: hit.id, score: score.toFixed(4), matchesOtherFields
+          });
+          
+          return false;
+        });
+
+        // --- SORTING ---
+        // Sort remaining hits by highest semantic score first
+        if ($isIndexingExperimental && queryVector) {
+          validHits.sort((a: any, b: any) => (b._rankingScore || 0) - (a._rankingScore || 0));
+        }
       }
-      */
       
       console.log("Main::search",validHits)
       console.log("Main::search:facets",searchResponse.facetDistribution, index)
@@ -440,7 +535,7 @@
         <SearchResultList {results} />
         {:else}
         <!-- {JSON.stringify(searchState)} -->
-        <SearchResultGrid {results} {isDetailOn} activeId={params?.id} {onAssetOpen} {onAssetClose} onUpdate={addFilter} />
+        <SearchResultGrid {results} items={renderItems} groups={renderGroups} {isDetailOn} activeId={params?.id} {onAssetOpen} {onAssetClose} onUpdate={addFilter} />
         {#if hasWorkflowIdFilter || hasDateFilter}
           {#if $isExperimental}
           <div style="text-align: center; margin-top: 1rem;">

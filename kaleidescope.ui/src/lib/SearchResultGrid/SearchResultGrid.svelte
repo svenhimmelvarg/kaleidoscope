@@ -11,6 +11,8 @@
 
   let {
     results,
+    items = [],
+    groups = [],
     isDetailOn,
     activeId = undefined,
     onAssetOpen = (id: any) => {},
@@ -18,9 +20,6 @@
     onUpdate = () => {},
     onSelect = () => {},
   } = $props();
-
-  let isGroupingEnabled = $state(false);
-
 
   const indexName = getContext("app.indexName");
 
@@ -38,21 +37,21 @@
   let currentIndex = $state(0);
 
   function goToNext() {
-    if (filteredResults.length === 0) {
+    if (items.length === 0) {
       console.log("[KeyboardNav] goToNext: No results available");
       return;
     }
     const prevIndex = currentIndex;
-    currentIndex = (currentIndex + 1) % filteredResults.length;
+    currentIndex = (currentIndex + 1) % items.length;
     console.log(
       "[KeyboardNav] goToNext: prevIndex=" +
         prevIndex +
         ", newIndex=" +
         currentIndex +
         ", total=" +
-        filteredResults.length,
+        items.length,
     );
-    const nextResult = filteredResults[currentIndex];
+    const nextResult = items[currentIndex];
     showSingle.update({
       id: nextResult.id,
       result: nextResult,
@@ -65,22 +64,22 @@
   }
 
   function goToPrev() {
-    if (filteredResults.length === 0) {
+    if (items.length === 0) {
       console.log("[KeyboardNav] goToPrev: No results available");
       return;
     }
     const prevIndex = currentIndex;
     currentIndex =
-      (currentIndex - 1 + filteredResults.length) % filteredResults.length;
+      (currentIndex - 1 + items.length) % items.length;
     console.log(
       "[KeyboardNav] goToPrev: prevIndex=" +
         prevIndex +
         ", newIndex=" +
         currentIndex +
         ", total=" +
-        filteredResults.length,
+        items.length,
     );
-    const prevResult = filteredResults[currentIndex];
+    const prevResult = items[currentIndex];
     showSingle.update({
       id: prevResult.id,
       result: prevResult,
@@ -173,144 +172,6 @@
     isLoading: false,
   });
 
-  let filteredResults = $derived(
-    results.entries
-      .filter((r) => r.created !== undefined && r.created !== null)
-      .sort((a, b) => b.created - a.created)
-  );
-
-  
-  function getDateHeader(yy, mm, dd) {
-    if (!yy || !mm || !dd) return null;
-    const d = new Date(yy, mm - 1, dd);
-    const today = new Date();
-    
-    if (
-      d.getDate() === today.getDate() &&
-      d.getMonth() === today.getMonth() &&
-      d.getFullYear() === today.getFullYear()
-    ) {
-      return "Today";
-    }
-    
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
-    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
-  }
-
-  // Group results intelligently preserving parent-child roots
-  let groupedByDate = $derived.by(() => {
-    const dates = [];
-    if (filteredResults.length === 0) return dates;
-    
-    let currentDateKey = null;
-    let currentItems = [];
-    
-    // Helper to group items in a given date slice intelligently
-    const groupIntelligently = (items) => {
-      if (!isGroupingEnabled) {
-         // Return dummy grouping format if grouping disabled: {"ungrouped": items}
-         return { ungrouped: items };
-      }
-
-      const idMap = new Map();
-      items.forEach(item => idMap.set(item.id, item));
-
-      // 1. Identify all Roots
-      // An item is a root if it doesn't have a parent_id,
-      // OR its parent_id is NOT in this set of items
-      const roots = items.filter(item => {
-        if (!item.parent_id) return true;
-        if (!idMap.has(item.parent_id)) return true;
-        return false;
-      });
-
-      // Group them mapping: rootId -> [Root, ...Children]
-      const finalGroups = {};
-      
-      roots.forEach(r => {
-        finalGroups[r.id] = [r]; // First element is always the Root
-      });
-
-      // Elements that are not roots
-      const nonRoots = items.filter(item => !roots.includes(item));
-
-      // 2. Attach children to their corresponding Root
-      // Because we can have deep chains (1 -> 1a -> 1aa), we trace up the parent chain
-      // until we hit a Root that is in the current result set.
-      nonRoots.forEach(item => {
-        let currentParentId = item.parent_id;
-        let rootFoundId = null;
-
-        // Trace up to max depth to avoid infinite loops
-        let depth = 0;
-        while (currentParentId && depth < 20) {
-          if (finalGroups[currentParentId]) {
-            rootFoundId = currentParentId;
-            break;
-          }
-          const parentItem = idMap.get(currentParentId);
-          if (parentItem && parentItem.parent_id) {
-            currentParentId = parentItem.parent_id;
-          } else {
-             break;
-          }
-          depth++;
-        }
-
-        if (rootFoundId) {
-           finalGroups[rootFoundId].push(item);
-        } else {
-           // Fallback: If for some strange reason it couldn't trace back to a root,
-           // just push it as a standalone root so we don't lose the result.
-           finalGroups[item.id] = [item];
-        }
-      });
-
-      // Now ensure within each group, the Root (index 0) is followed by children sorted newest to oldest
-      Object.keys(finalGroups).forEach(k => {
-          if (finalGroups[k].length > 1) {
-              const root = finalGroups[k][0];
-              const children = finalGroups[k].slice(1).sort((a,b) => b.created - a.created);
-              finalGroups[k] = [root, ...children];
-          }
-      });
-
-      return finalGroups;
-    };
-
-
-    for (const r of filteredResults) {
-      const dateKey = r.yy && r.mm && r.dd ? `${r.yy}-${r.mm}-${r.dd}` : 'unknown';
-      
-      if (currentDateKey === null) {
-        currentDateKey = dateKey;
-      }
-      
-      if (dateKey !== currentDateKey) {
-        dates.push({
-          header: currentDateKey !== 'unknown' && currentItems.length > 0 ? getDateHeader(currentItems[0].yy, currentItems[0].mm, currentItems[0].dd) : null,
-          dateKey: currentDateKey,
-          groupedItems: groupIntelligently(currentItems)
-        });
-        currentDateKey = dateKey;
-        currentItems = [];
-      }
-      currentItems.push(r);
-    }
-    
-    if (currentItems.length > 0) {
-      dates.push({
-        header: currentDateKey !== 'unknown' ? getDateHeader(currentItems[0].yy, currentItems[0].mm, currentItems[0].dd) : null,
-        dateKey: currentDateKey,
-        groupedItems: groupIntelligently(currentItems)
-      });
-    }
-    
-    return dates;
-  });
-
   function toggleShowSingle(r) {
     console.log(
       "[KeyboardNav] toggleShowSingle: Toggling asset id=" +
@@ -328,14 +189,14 @@
       result: r,
       display: newDisplay,
     });
-    // Find the index of the clicked item in filteredResults
-    currentIndex = filteredResults.findIndex((item) => item.id === r.id);
+    // Find the index of the clicked item in items
+    currentIndex = items.findIndex((item) => item.id === r.id);
     if (currentIndex === -1) currentIndex = 0;
     console.log(
       "[KeyboardNav] toggleShowSingle: Set currentIndex=" +
         currentIndex +
         ", total results=" +
-        filteredResults.length,
+        items.length,
     );
     
     if (newDisplay) {
@@ -400,14 +261,14 @@
 
   $effect(() => {
     if (activeId && (!showSingle.display || showSingle.id !== activeId)) {
-      const result = filteredResults.find((r: any) => r.id === activeId);
+      const result = items.find((r: any) => r.id === activeId);
       if (result) {
         showSingle.update({
           id: result.id,
           result: result,
           display: true
         });
-        currentIndex = filteredResults.findIndex((item: any) => item.id === result.id);
+        currentIndex = items.findIndex((item: any) => item.id === result.id);
         if (currentIndex === -1) currentIndex = 0;
       }
     } else if (!activeId && showSingle.display) {
@@ -422,7 +283,7 @@
 
 <svelte:window onkeydown={handleWindowKeydown} ontouchstart={handleTouchStart} ontouchend={handleTouchEnd} />
 
-{#key results.entries.length}
+{#key items.length}
     <!--div class="search-results__controls">
        <label class="group-toggle">
          <input type="checkbox" bind:checked={isGroupingEnabled} />
@@ -432,13 +293,13 @@
     
     <Notifications
       onclick={(_id) => {
-        const r = filteredResults.find((i) => i.id === _id) || { id: _id };
+        const r = items.find((i) => i.id === _id) || { id: _id };
         toggleShowSingle(r);
       }}/>
 
 
     <div class="search-results__grid">
-    {#each groupedByDate as dateGroup}
+    {#each groups as dateGroup}
       {#if dateGroup.header}
         <div class="search-results__date-header">
           <div>{dateGroup.header}</div>
