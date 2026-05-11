@@ -4,7 +4,7 @@
     "rules": []
   },
   "experimental.indexing": {
-    "defaultValue": true,
+    "defaultValue": false,
     "rules": []
   },
   "show_hidden_toggle": {

@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument("paths", nargs=-1, required=True)
-def ingest(paths):
+@click.option("--skip-transforms", is_flag=True, help="skips transforms and sink for already indexed files")
+@click.option("--refresh-index", is_flag=True, help="reads from cache instead of filesystem, ordered newest to oldest")
+@click.option("--limit", type=int, help="limit the number of files to process")
+def ingest(paths, skip_transforms, refresh_index, limit):
     logger.info("Starting ingest")
     config = ensure_config()
 
@@ -74,6 +77,13 @@ def ingest(paths):
             "--indexer.name",
             config.index_name,
         ]
+
+        if skip_transforms:
+            cmd.append("--skip-transforms")
+        if refresh_index:
+            cmd.append("--refresh-index")
+        if limit is not None:
+            cmd.extend(["--limit", str(limit)])
 
         logger.info(f"Running command: {' '.join(cmd)} in {cwd}")
 

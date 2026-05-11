@@ -85,8 +85,10 @@ def create_arguments():
     parser.add_argument("input", help="input json array")
     parser.add_argument("--overwrite", help="overwrites existing files")
     parser.add_argument("--skip-cache-hits", help="overwrites existing files")
+    parser.add_argument("--skip-transforms", action="store_true", help="skips transforms and sink for already indexed files")
+    parser.add_argument("--refresh-index", action="store_true", help="reads from cache instead of filesystem, ordered newest to oldest")
     parser.add_argument("--watch", help="watch folder")
-    parser.add_argument("--limit", help="watch folder", default=1)
+    parser.add_argument("--limit", help="limit number of records to process", default=None)
     parser.add_argument(
         "--indexer.host",
         dest="indexer_host",
@@ -663,39 +665,94 @@ outputs = []
 
 
 print(args)
-# hard_limit = 100000
-hard_limit = 100000  # args.limit
+# Try to parse limit from args, default to large number
+try:
+    hard_limit = int(args.limit)
+except (ValueError, TypeError):
+    hard_limit = 100000
+
 count = 0
 should_watch = True if args.watch == "true" else False
-for r, file_path in get_media(
-    os.path.abspath(args.input), limit=hard_limit, watch=should_watch
-):  # records:
-    if args.skip_cache_hits == "true":
-        continue
-    if cache_exists(r["_id"], "output.json") and args.overwrite != "true":
-        # print(f" * Key exists {r['_id']}")
-        output = cache_get(r["_id"], "output.json")
+
+if args.refresh_index:
+    print("Mode B: Refreshing index from cache...")
+    base_cache_dir = f"{effective_data_dir}/output/{effective_index_name}"
+    
+    if os.path.exists(base_cache_dir):
+        # Get all subdirectories (doc_ids) with their mtime
+        dirs_with_mtime = []
+        for d in os.listdir(base_cache_dir):
+            dir_path = os.path.join(base_cache_dir, d)
+            if os.path.isdir(dir_path):
+                dirs_with_mtime.append((os.path.getmtime(dir_path), d))
+        
+        # Sort by mtime descending (newest first)
+        dirs_with_mtime.sort(key=lambda x: x[0], reverse=True)
+        
+        for _, doc_id in dirs_with_mtime:
+            if not should_watch and count >= hard_limit:
+                break
+                
+            if not cache_exists(doc_id, "milliesearch_write") or not cache_exists(doc_id, "output.json"):
+                continue
+                
+            try:
+                ms_write = cache_get(doc_id, "milliesearch_write")
+                source_path = ms_write.get("image_url")
+                
+                if not source_path or not os.path.exists(source_path):
+                    # print(f"Skipping {doc_id}: source file not found at {source_path}")
+                    continue
+                    
+                output = cache_get(doc_id, "output.json")
+                output["source_path"] = source_path
+                output["id"] = doc_id
+                outputs.append(output)
+                count += 1
+                
+                if args.watch == "true":
+                    sink([output])
+            except Exception as e:
+                print(f"Error processing cached doc {doc_id}: {e}")
+                continue
     else:
-        try:
-            output = transform(r, ignore_errors=["data.workflow", "data.prompt", "data.size"])
-            # output = transform(r)
-            f_name = cache_write(r["_id"], "output.json", output)
-            print(f_name)
-        except Exception as e:
-            file_identifier = r.get('id', 'unknown id')
-            print(f"Skipping problematic image: {file_identifier} - Error: {e}")
+        print(f"Cache directory not found: {base_cache_dir}")
+else:
+    print("Mode A: Scanning filesystem...")
+    for r, file_path in get_media(
+        os.path.abspath(args.input), limit=hard_limit, watch=should_watch
+    ):  # records:
+        if args.skip_cache_hits == "true":
             continue
-    output["source_path"] = file_path
-    output["id"] = r["_id"]
-    #     print(output.keys())
-    # #        output["inputs"]))
-    #     import sys;sys.exit(0)
-    outputs.append(output)
-    count = count + 1
-    if count > hard_limit:
-        break
-    if args.watch == "true":
-        sink([output])
+            
+        if args.skip_transforms and cache_exists(r["_id"], "milliesearch_write"):
+            # Skip doc entirely if it has already been processed to sink
+            continue
+            
+        if cache_exists(r["_id"], "output.json") and args.overwrite != "true":
+            # print(f" * Key exists {r['_id']}")
+            output = cache_get(r["_id"], "output.json")
+        else:
+            try:
+                output = transform(r, ignore_errors=["data.workflow", "data.prompt", "data.size"])
+                # output = transform(r)
+                f_name = cache_write(r["_id"], "output.json", output)
+                print(f_name)
+            except Exception as e:
+                file_identifier = r.get('id', 'unknown id')
+                print(f"Skipping problematic image: {file_identifier} - Error: {e}")
+                continue
+        output["source_path"] = file_path
+        output["id"] = r["_id"]
+        #     print(output.keys())
+        # #        output["inputs"]))
+        #     import sys;sys.exit(0)
+        outputs.append(output)
+        count = count + 1
+        if not should_watch and count >= hard_limit:
+            break
+        if args.watch == "true":
+            sink([output])
 
 print(f"Processed {count} records")
 

@@ -16,6 +16,7 @@ from graph import parse_graph, topological_order
 #from punter.data import _t, tupler
 from punter.data import _t, tupler, deref2
 from punter.models import Workflow
+from config import get_indexer_legacy_config
 
 _model = None
 _nlp = None
@@ -34,20 +35,35 @@ def get_nlp():
             _nlp = False
     return _nlp if _nlp is not False else None
 
+def hyponym_count_capped(synset, cap=50):
+    count = 0
+    queue = synset.hyponyms()
+    while queue and count < cap:
+        count += 1
+        current = queue.pop(0)
+        queue.extend(current.hyponyms())
+    return count
+
 def extract_hypernym_lineages(text):
     nlp = get_nlp()
     if not nlp:
         return []
+    
+    app_config = get_indexer_legacy_config()
+    hyponym_cap = app_config.get("hyponym_count_cap", 50)
     
     from nltk.corpus import wordnet as wn
     
     doc = nlp(text)
     categories = []
     
+    allowed_deps = {"nsubj", "nsubjpass", "dobj", "pobj", "compound", "conj"}
+    
     for token in doc:
-        if token.pos_ == "NOUN":
+        if token.pos_ == "NOUN" and token.dep_ in allowed_deps:
             noun = token.text.lower()
-            categories.append(noun)
+            if noun not in categories:
+                categories.append(noun)
             
             synsets = wn.synsets(noun, pos=wn.NOUN)
             if not synsets:
@@ -58,47 +74,64 @@ def extract_hypernym_lineages(text):
             
             # Go back up traversing hypernyms
             current_synsets = [synset]
+            noun_lineage = []
             while current_synsets:
                 next_synsets = []
                 for s in current_synsets:
                     hypernyms = s.hypernyms()
                     for h in hypernyms:
                         # Check descendants to avoid extremely general nodes
-                        # Note: computing this can be slightly expensive, so we do it dynamically
-                        # but in a real-world scenario we might pre-compute or cache it.
-                        num_hyponyms = len(list(h.closure(lambda x: x.hyponyms())))
-                        if num_hyponyms > 5000:
+                        if hyponym_count_capped(h, cap=hyponym_cap) >= hyponym_cap:
                             continue # Skip this hypernym and its ancestors
                             
                         # Extract the base word from the synset name (e.g., 'dog.n.01' -> 'dog')
                         name = h.name().split('.')[0].replace('_', ' ')
                         if name not in categories:
                             categories.append(name)
+                        if name not in noun_lineage:
+                            noun_lineage.append(name)
                         next_synsets.append(h)
                 current_synsets = next_synsets
+            
+            if noun_lineage:
+                print(f"{noun} : {' '.join(noun_lineage)}")
                 
     return list(set(categories))
 
 def get_caption_from_smolvlm(image_path):
     import time
     start_time = time.time()
+    
+    app_config = get_indexer_legacy_config()
+    vlm_config = app_config.get("vlm", {})
+    model_name = vlm_config.get("model_name", "smolvlm")
+    system_prompt = vlm_config.get("system_prompt", "")
+    user_prompt = vlm_config.get("prompt", "describe this image in great detail focusing on the concrete subjects, objects, and setting.")
+    
     try:
         with open(image_path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
             
         data_uri = f"data:image/jpeg;base64,{encoded_string}"
         
+        messages = []
+        if system_prompt:
+            messages.append({
+                "role": "system",
+                "content": system_prompt
+            })
+            
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_prompt},
+                {"type": "image_url", "image_url": {"url": data_uri}}
+            ]
+        })
+        
         payload = {
-            "model": "smolvlm",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "describe this image in great detail focusing on the concrete subjects, objects, and setting."},
-                        {"type": "image_url", "image_url": {"url": data_uri}}
-                    ]
-                }
-            ],
+            "model": model_name,
+            "messages": messages,
             "max_tokens": 500
         }
         
@@ -823,7 +856,12 @@ def with_vectors(doc: Dict[str, Any], artifact: Dict[str, Any]) -> Dict[str, Any
     return doc
 
 def build_enriched_document(artifact: Dict[str, Any], steps: List[Callable]) -> Workflow:
-    initial_state = {}
-    final_dict = reduce(lambda current_doc, step_fn: step_fn(current_doc, artifact), steps, initial_state)
-    return Workflow.model_validate(final_dict)
+    import time
+    current_doc = {}
+    for step_fn in steps:
+        start_time = time.time()
+        current_doc = step_fn(current_doc, artifact)
+        elapsed_ms = (time.time() - start_time) * 1000.0
+        print(f"pipeline_step: {step_fn.__name__} [{elapsed_ms:.2f} ms]")
+    return Workflow.model_validate(current_doc)
 
