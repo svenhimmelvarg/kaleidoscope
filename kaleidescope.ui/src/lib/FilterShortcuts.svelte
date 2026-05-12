@@ -505,8 +505,8 @@
     font-weight: 500;
     color: rgba(60, 60, 67, 0.6);
     background-color: transparent;
-    border: 1px solid rgba(120, 120, 128, 0.16);
-    border-radius: 16px;
+    /* border: 1px solid rgba(120, 120, 128, 0.16);
+    border-radius: 16px; */
     cursor: pointer;
     transition: all 0.2s ease;
     outline: none;
@@ -538,6 +538,9 @@
   .filter-shortcuts__search {
     width: 150px;
     cursor: text;
+    border: 1px solid rgba(120, 120, 128, 0.16);
+    border-radius: 16px;
+
   }
 
   .filter-shortcuts__search:focus {

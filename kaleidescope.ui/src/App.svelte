@@ -124,7 +124,7 @@ setContext("search.client",new Meilisearch({
 </script>
 
 <div class="app">
-  <div class="app__text-logo">K</div>
+  <div class="app__text-logo">Ielak.</div>
   <!--div>{PUBLIC_CONVEX_URL}</div--> 
   <!-- <nav class="app__navigation">
     <div class="app__nav-container">      
@@ -148,19 +148,19 @@ setContext("search.client",new Meilisearch({
     /* background-color: #f5f5f7; */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     max-width:1880px;
-    padding: 0 8px;
+    /* padding: 0 8px; */
   }
 
   .app__text-logo {
     font-size: 120px;
     line-height: 1;
-    color: slategray;
+    /* color: slategray; */
     font-family: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", sans-serif;
     font-weight: 700;
     margin: 0;
     padding: 0;
     display: block;
-    margin-right: auto;
+    /* margin-right: auto; */
   }
 
   .app__navigation {

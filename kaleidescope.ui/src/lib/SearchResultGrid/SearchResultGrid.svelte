@@ -442,8 +442,11 @@
     display: flex;
     justify-content: left;
     font-size: 3rem;
-    margin-top: 2rem;
-    margin-bottom: 0.5rem;
+    /* border: 1px solid #CCC; */
+    /* margin-top: 2rem; */
+    /* background-color: #646a6e; */
+    /* margin-bottom: 0.5rem; */
+    color: #d4d4d4;    
   }
 
   .search-results__asset-row {
