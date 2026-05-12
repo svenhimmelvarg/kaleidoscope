@@ -462,6 +462,7 @@ def run_indexer(
         "dd",
         "mm",
         "yy",
+        "ym",
         "dayOfWeek",
         "workflow_id",
         "resolution",
@@ -523,6 +524,7 @@ def run_indexer(
             d1["dayOfWeek"] = creation_time.strftime("%A")
             d1["mm"] = creation_time.month
             d1["yy"] = creation_time.year
+            d1["ym"] = creation_time.strftime("%Y-%m")
             d1["created"] = int(file_stat.st_ctime)
 
             # Calculate hashes

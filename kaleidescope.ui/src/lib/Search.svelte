@@ -421,7 +421,7 @@
   }
 
   // Initialize index info on component mount
-  const dateFacets  = ["dd","mm","year","dayOfWeek","yy","elapsedMS"]
+  const dateFacets  = ["dd","mm","ym","year","dayOfWeek","yy","elapsedMS"]
   const keptFacets = ["loras", "models", "orientation", "samplers", "schedulers", "source"]
 
   let isListView = $state(false)
@@ -437,10 +437,11 @@
   
   let hasDateFilter = $derived(
     searchState.filters.some((f: any) => 
-      ['dd', 'mm', 'yy', 'week', 'weekday', 'dayOfWeek', 'thisweek_dayOfWeek', 'time_bucket'].includes(f.attribute) || 
+      ['dd', 'mm', 'ym', 'yy', 'week', 'weekday', 'dayOfWeek', 'thisweek_dayOfWeek', 'time_bucket'].includes(f.attribute) || 
       (f.expression && (
         f.expression.includes('dd') || 
         f.expression.includes('mm') || 
+        f.expression.includes('ym') || 
         f.expression.includes('yy') || 
         f.expression.includes('week') || 
         f.expression.includes('dayOfWeek')
@@ -1031,4 +1032,3 @@
 
 </style>
   
-

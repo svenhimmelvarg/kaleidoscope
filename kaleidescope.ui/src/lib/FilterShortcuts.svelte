@@ -87,6 +87,59 @@
 
     return [];
   }
+
+  function parseYearMonth(value: string) {
+    const [year, month] = value.split('-').map(Number);
+
+    if (!year || !month) return null;
+
+    return { year, month };
+  }
+
+  function buildMonthShortcuts(reduced: any): Shortcut[] {
+    if (reduced.ym) {
+      return Object.keys(reduced.ym)
+        .filter(key => parseYearMonth(key))
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, 3)
+        .reverse()
+        .map(key => {
+          const parsed = parseYearMonth(key)!;
+
+          return {
+            type: 'dynamic',
+            facet: 'ym',
+            value: key,
+            label: monthNames[parsed.month - 1] || `M${parsed.month}`,
+            group: 'date'
+          };
+        });
+    }
+
+    if (reduced.mm) {
+      const currentMonth = new Date().getMonth() + 1;
+
+      return Object.keys(reduced.mm)
+        .map(Number)
+        .sort((a, b) => getRelativeMonthSortValue(b, currentMonth) - getRelativeMonthSortValue(a, currentMonth))
+        .slice(0, 3)
+        .reverse()
+        .map(m => ({
+          type: 'dynamic',
+          facet: 'mm',
+          value: m.toString(),
+          label: monthNames[m - 1] || `M${m}`,
+          group: 'date'
+        }));
+    }
+
+    return [];
+  }
+
+  function getRelativeMonthSortValue(month: number, currentMonth: number) {
+    const inferredYear = month <= currentMonth ? 1 : 0;
+    return inferredYear * 12 + month;
+  }
   
   function buildTimeShortcuts(reduced: any): Shortcut[] {
     const shortcuts: Shortcut[] = [];
@@ -96,21 +149,11 @@
       .sort((a, b) => parseInt(b) - parseInt(a))
       .slice(0, 3)
       .reverse();
-    const monthKeys = reduced.mm
-      ? Object.keys(reduced.mm).map(Number).sort((a, b) => b - a).slice(0, 3).reverse()
-      : [];
+    const monthShortcuts = buildMonthShortcuts(reduced);
     const currentWeekDays = buildCurrentWeekDayShortcuts(reduced);
 
-    if (monthKeys.length > 1) {
-      monthKeys.forEach(m => {
-        shortcuts.push({
-          type: 'dynamic',
-          facet: 'mm',
-          value: m.toString(),
-          label: monthNames[m - 1] || `M${m}`,
-          group: 'date'
-        });
-      });
+    if (monthShortcuts.length > 1) {
+      shortcuts.push(...monthShortcuts);
     }
 
     if (previousWeekKeys.length > 0) {
@@ -142,7 +185,7 @@
     const timeShortcuts: any[] = [];
     const drillDownShortcuts: any[] = [];
 
-    timeShortcuts.push(...buildTimeShortcuts(reduced));
+    timeShortcuts.push(...buildTimeShortcuts(facets));
 
     // Progressive Drill-Down Facets (Models, Orientation, Time Bucket)
     // Only show these if there's an active filter or custom filter, indicating we've drilled down.
@@ -179,7 +222,11 @@
       addTopFacets('time_bucket', 'Time: ');
     }
     
-    shortcuts.push(...drillDownShortcuts, ...timeShortcuts);
+    const hasDateShortcut = shortcuts.some(shortcut => shortcut.group === 'date');
+
+    shortcuts.push(...drillDownShortcuts);
+    if (hasDateShortcut && timeShortcuts.length > 0) addSeparator(shortcuts);
+    shortcuts.push(...timeShortcuts);
     
     return shortcuts;
   }
@@ -252,6 +299,11 @@
   let row2Shortcuts = $derived(dateShortcuts.length > 0 ? drillDownShortcuts : []);
 
   function formatActiveFacetLabel(facet: string, value: string) {
+    if (facet === 'ym') {
+      const parsed = parseYearMonth(value);
+      return parsed ? monthNames[parsed.month - 1] || value : value;
+    }
+
     if (facet === 'mm') {
       const monthIndex = Number(value) - 1;
       return monthNames[monthIndex] || value;

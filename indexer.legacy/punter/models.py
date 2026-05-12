@@ -23,6 +23,7 @@ class Workflow(BaseModel):
     dayOfWeek: Optional[str] = None
     mm: Optional[int] = None
     yy: Optional[int] = None
+    ym: Optional[str] = None
     week: Optional[str] = None
     weekday: Optional[str] = None
     workflow_id: Optional[str] = None

@@ -103,10 +103,10 @@ const searchState = $state({
              { attribute: 'dayOfWeek', value: dayValue },
              { attribute: weekAttribute, value: weekValue }
            ];
-        } else if (filter && filter.includes(':')) {
-           const [key, value] = filter.split(':');
-           newRouteFilters = [{ attribute: key, value: value }];
-        }
+         } else if (filter && filter.includes(':')) {
+            const [key, ...valueParts] = filter.split(':');
+            newRouteFilters = [{ attribute: key, value: valueParts.join(':') }];
+         }
     }
     this.routeFilters = newRouteFilters;
   }
@@ -242,4 +242,3 @@ setContext("search.client",new Meilisearch({
     color: #888;
   }
 </style>
-

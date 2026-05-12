@@ -534,7 +534,7 @@ def sink(outputs):
         effective_index_name,
         [
             "categories", "caption", "loras", "models", "schedulers", "samplers",
-            "dd", "mm", "yy", "week", "weekday", "dayOfWeek", "workflow_id",
+            "dd", "mm", "yy", "ym", "week", "weekday", "dayOfWeek", "workflow_id",
             "resolution", "orientation", "width", "height", "source",
             "workflow_structure_id", "workflow_structure_signature_id", "inputs",
             "wf_hash_id", "inputs_hash_id", "aspect_ratio", "megapixels",

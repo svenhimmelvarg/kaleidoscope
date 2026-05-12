@@ -760,6 +760,7 @@ def with_file_metadata(doc: Dict[str, Any], artifact: Dict[str, Any]) -> Dict[st
         "dd": creation_time.day,
         "mm": creation_time.month,
         "yy": creation_time.year,
+        "ym": creation_time.strftime("%Y-%m"),
         "dayOfWeek": creation_time.strftime("%A"),
         "week": f"{str(creation_time.year)[-2:]}{creation_time.isocalendar()[1]:02d}",
         "weekday": f"{str(creation_time.year)[-2:]}{creation_time.isocalendar()[1]:02d}{creation_time.isocalendar()[2]}"
