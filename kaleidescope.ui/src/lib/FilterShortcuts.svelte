@@ -14,6 +14,10 @@
   let { params = {}, onSearch, facets = {}, onRemoveFilter = (attr: string, val: string, expr?: string) => {}, onAddFilter = (kv: any) => {} } = $props();
   
   type Shortcut = { type: string; value: string; label: string; facet?: string; group: 'date' | 'drilldown' };
+  type SecondaryShortcutGroup =
+    | { type: 'separator' }
+    | { type: 'group'; facet: string; label: string; shortcuts: Shortcut[] }
+    | { type: 'shortcut'; shortcut: Shortcut };
 
   const weekdayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekdayShortLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -38,6 +42,39 @@
     if (shortcuts.length > 0 && shortcuts[shortcuts.length - 1].type !== 'separator') {
       shortcuts.push({ type: 'separator', value: '|', label: '|', group: 'date' });
     }
+  }
+
+  function isGroupedFacet(facet?: string) {
+    return facet === 'models' || facet === 'loras';
+  }
+
+  function getFacetGroupLabel(facet?: string) {
+    if (facet === 'models') return 'Model';
+    if (facet === 'loras') return 'Lora';
+    return null;
+  }
+
+  function getShortcutDisplayValue(shortcut: Shortcut) {
+    return isGroupedFacet(shortcut.facet) ? formatFacetValue(shortcut.value) : shortcut.label;
+  }
+
+  function groupSecondaryShortcuts(shortcuts: Shortcut[]): SecondaryShortcutGroup[] {
+    const grouped: SecondaryShortcutGroup[] = [];
+    const buckets = new Map<string, Shortcut[]>();
+
+    shortcuts
+      .filter((shortcut) => shortcut.type !== 'separator')
+      .forEach((shortcut) => {
+        const key = shortcut.facet || shortcut.value;
+        buckets.set(key, [...(buckets.get(key) || []), shortcut]);
+      });
+
+    Array.from(buckets.entries()).forEach(([facet, bucket]) => {
+      if (grouped.length > 0) grouped.push({ type: 'separator' });
+      grouped.push({ type: 'group', facet, label: getFacetGroupLabel(facet) || '', shortcuts: bucket });
+    });
+
+    return grouped;
   }
   
   function buildCurrentWeekDayShortcuts(reduced: any): Shortcut[] {
@@ -210,10 +247,10 @@
             const isCustomFilter = searchState.customFilters && searchState.customFilters.some((f: any) => f.attribute === facetName && f.value === val);
             
             if (!isActiveFilter && !isCustomFilter) {
-               drillDownShortcuts.push({ type: 'dynamic', facet: facetName, value: val, label: `${prefixLabel}${label}`, group: 'drilldown' });
-            }
-          });
-        }
+               drillDownShortcuts.push({ type: 'dynamic', facet: facetName, value: val, label: isGroupedFacet(facetName) ? label : `${prefixLabel}${label}`, group: 'drilldown' });
+             }
+           });
+         }
       };
 
       addTopFacets('models', 'Model: ');
@@ -297,6 +334,7 @@
   // If there are NO date shortcuts, drill-downs go in row 1, and row 2 is empty.
   let row1Shortcuts = $derived(dateShortcuts.length > 0 ? dateShortcuts : drillDownShortcuts);
   let row2Shortcuts = $derived(dateShortcuts.length > 0 ? drillDownShortcuts : []);
+  let groupedRow2Shortcuts = $derived(groupSecondaryShortcuts(row2Shortcuts));
 
   function formatActiveFacetLabel(facet: string, value: string) {
     if (facet === 'ym') {
@@ -466,16 +504,30 @@
   {/if}
 
   {#if row2Shortcuts.length > 0}
-    <div class="filter-shortcuts row-2">
-      {#each row2Shortcuts as shortcut}
-        {#if shortcut.type === 'separator'}
+    <div class="filter-shortcuts row-2 filter-shortcuts--secondary">
+      {#each groupedRow2Shortcuts as item}
+        {#if item.type === 'separator'}
           <span class="filter-shortcuts__separator" aria-hidden="true">|</span>
+        {:else if item.type === 'group'}
+          <div class="filter-shortcuts__facet-group">
+            {#if item.label}
+              <span class="filter-shortcuts__facet-label">{item.label}:</span>
+            {/if}
+            {#each item.shortcuts as shortcut}
+              <button
+                class="filter-shortcuts__pill filter-shortcuts__pill--secondary"
+                onclick={() => handleShortcutClick(shortcut)}
+              >
+                {getShortcutDisplayValue(shortcut)}
+              </button>
+            {/each}
+          </div>
         {:else}
           <button 
-            class="filter-shortcuts__pill"
-            onclick={() => handleShortcutClick(shortcut)}
+            class="filter-shortcuts__pill filter-shortcuts__pill--secondary"
+            onclick={() => handleShortcutClick(item.shortcut)}
           >
-            {shortcut.label}
+            {getShortcutDisplayValue(item.shortcut)}
           </button>
         {/if}
       {/each}
@@ -497,6 +549,28 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap; /* Important if many pills */
+  }
+
+  .filter-shortcuts--secondary {
+    gap: 10px;
+  }
+
+  .filter-shortcuts__facet-group {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .filter-shortcuts__facet-label {
+    color: var(--ui-text);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .filter-shortcuts__pill--secondary {
+    padding-inline: 6px;
   }
 
   .filter-shortcuts__pill {
