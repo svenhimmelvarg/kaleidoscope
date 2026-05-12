@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fixImageUrl } from "../functions/uri_helpers";
+  import { imageFileUrl } from "../functions/uri_helpers";
 
   
   let results = $props() 
@@ -27,7 +27,7 @@
         </div>                
       </div>
       <div>
-        <img src={fixImageUrl(r.image_url, r.source)} />
+        <img src={imageFileUrl(r.image_url)} />
         
       </div>
     </div>

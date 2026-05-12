@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fixImageUrl } from "../functions/uri_helpers";
+  import { imageFileUrl } from "../functions/uri_helpers";
   import { createInvokeController } from "../controllers/InvokeController.js";
   import Bookmarker from "../Bookmarker.svelte";
   import { getContext } from "svelte";
@@ -348,7 +348,7 @@
                     grabFocus(e);
                     onSelect(r);
                   }}
-                  src={isVideo ? `/images/thumbnails/${r.id}.jpg` : fixImageUrl(r.image_url, r.source)}
+                  src={isVideo ? `/images/thumbnails/${r.id}.jpg` : imageFileUrl(r.image_url)}
                   alt="Generated image"
                 />
               </div>
@@ -433,7 +433,6 @@
     grid-template-columns: repeat(4, 1fr); */
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    grid-auto-flow: dense;
     /* gap: 1rem; */ 
   }
 

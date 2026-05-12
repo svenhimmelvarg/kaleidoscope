@@ -29,7 +29,10 @@ class AssetController {
 
       const { storageId } = await response.json();
       
-      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
+      if (!releaseFolder) {
+        throw new Error('VITE_RELEASE_FOLDER is not configured');
+      }
       const path = `input/${releaseFolder}/${filename}`;
       const assetId = await this.client.mutation(api.assets.save, {
         storageId,

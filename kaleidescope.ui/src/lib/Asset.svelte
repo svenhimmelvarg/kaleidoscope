@@ -1,6 +1,6 @@
 <script>
   import { getWeekString } from './functions/date_helpers.js';
-  import { fixImageUrl } from "./functions/uri_helpers";
+  import { imageFileUrl, inputImageUrl } from "./functions/uri_helpers";
   import { getContext } from 'svelte';
   import { useQuery } from 'convex-svelte';
   import { api } from "../convex/_generated/api.js";
@@ -211,7 +211,8 @@
       outputs.isLoading = true
       err.message = "Asset:file uploaded:"
 
-      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
+      if (!releaseFolder) throw new Error('VITE_RELEASE_FOLDER is not configured');
       const response = await invokeController.prompt(doc.id,  {
         _id :  i._id,
         field: i.key,
@@ -467,7 +468,7 @@
       {#if docCache[histId]}
         {@const isVideo = docCache[histId].type === 'video' || docCache[histId].content_type?.includes('video') || docCache[histId].image_url?.endsWith('.mp4')}
         <img 
-          src={isVideo ? `/images/thumbnails/${histId}.jpg` : fixImageUrl(docCache[histId].image_url, docCache[histId].source)} 
+          src={isVideo ? `/images/thumbnails/${histId}.jpg` : imageFileUrl(docCache[histId].image_url)} 
           alt="History item" 
           style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; cursor: pointer;"
           onclick={() => page.updateId(histId)}
@@ -509,7 +510,8 @@
               console.log("Extracted frame uploaded:", result);
               
               // Construct path and invoke
-              const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+              const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
+              if (!releaseFolder) throw new Error('VITE_RELEASE_FOLDER is not configured');
               const virtualPath = `virtual://${result.storageId}/${doc.source}/input/${releaseFolder}/${file.name}`;
               
               const response = await invokeController.prompt(doc.id, {
@@ -529,7 +531,7 @@
         {:else}
           <img
             class="asset__image"
-            src={isVideo ? `/images/thumbnails/${doc.id}.jpg` : fixImageUrl(doc.image_url, doc.source)}
+            src={isVideo ? `/images/thumbnails/${doc.id}.jpg` : imageFileUrl(doc.image_url)}
             alt="Generated image"
             use:longpress={500}
             onlongpress={() => { collapsed = !collapsed; }}
@@ -818,7 +820,7 @@
                 <!-- <div>{JSON.stringify(i,null,2)}  {i.type=="image"}</div> -->
                 {#if  i?.type.trim() == "image"}
                   <!-- <div>{i.value}</div> -->
-                  <img style="width:100px;height:120px;" src="/images/{doc.source}/input/{i.value}"
+                  <img style="width:100px;height:120px;" src={inputImageUrl(i.value)}
                      onclick={() => handleFilterClick({ attribute: "inputs.value", value: i.value })}
                    />
                 {/if}
@@ -870,12 +872,12 @@
                {#each doc.inputs as i }
                  <!-- <div>{JSON.stringify(i,null,2)}  {i.type=="image"}</div> -->
                  {#if  i?.type.trim() == "image"}
-                   {@const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release'}
-                   {@const regex = new RegExp(`${releaseFolder}s?\\/([a-f0-9]{32,64})\\.(png|mp4|jpg|jpeg|webp)$`, 'i')}
-                   {@const match = (i.value || '').match(regex)}
+                    {@const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER}
+                    {@const regex = releaseFolder ? new RegExp(`${releaseFolder}s?\\/([a-f0-9]{32,64})\\.(png|mp4|jpg|jpeg|webp)$`, 'i') : null}
+                    {@const match = regex ? (i.value || '').match(regex) : null}
                    <div class="input-image-wrapper">
                      <!-- <div>{i.value}</div> -->
-                     <img src="/images/{doc.source}/input/{i.value}"
+                      <img src={inputImageUrl(i.value)}
                            use:longpress={500}
                            onlongpress={() => {
                              selectedImageInput = i;

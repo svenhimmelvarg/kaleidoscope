@@ -744,13 +744,17 @@ def with_file_metadata(doc: Dict[str, Any], artifact: Dict[str, Any]) -> Dict[st
         return doc
         
     file_stat = os.stat(source_path)
-    creation_time = datetime.datetime.fromtimestamp(file_stat.st_ctime)
+    file_mtime = int(file_stat.st_mtime)
+    file_ctime = int(file_stat.st_ctime)
+    creation_time = datetime.datetime.fromtimestamp(file_mtime)
     
     is_video = source_path.lower().endswith(".mp4")
     
     return {
         **doc,
-        "created": int(file_stat.st_ctime),
+        "created": file_mtime,
+        "file_mtime": file_mtime,
+        "file_ctime": file_ctime,
         "type": "video" if is_video else "image",
         "content_type": "video/mp4" if is_video else "image/png",
         "dd": creation_time.day,
@@ -864,4 +868,3 @@ def build_enriched_document(artifact: Dict[str, Any], steps: List[Callable]) -> 
         elapsed_ms = (time.time() - start_time) * 1000.0
         print(f"pipeline_step: {step_fn.__name__} [{elapsed_ms:.2f} ms]")
     return Workflow.model_validate(current_doc)
-

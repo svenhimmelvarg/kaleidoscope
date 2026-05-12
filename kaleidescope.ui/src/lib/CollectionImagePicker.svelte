@@ -2,7 +2,7 @@
   import { useQuery } from 'convex-svelte';
   import { getContext } from 'svelte';
   import { api } from "../convex/_generated/api.js";
-  import { fixImageUrl } from './functions/uri_helpers';
+  import { imageFileUrl } from './functions/uri_helpers';
 
   let { onSelect = () => {} } = $props();
 
@@ -65,7 +65,7 @@
             <div>
               <img 
                 style="width:100px;height:100px;object-fit:cover;border-radius:4px;cursor:pointer;" 
-                src="{fixImageUrl(hit.image_url, hit.source)}"
+                src={imageFileUrl(hit.image_url)}
                 alt="Collection item"
                 onclick={() => onSelect(hit)}
               />

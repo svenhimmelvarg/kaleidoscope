@@ -1,6 +1,6 @@
 Ex
 <script lang="ts">
-  import { fixImageUrl } from "../functions/uri_helpers.js";
+  import { imageFileUrl } from "../functions/uri_helpers.js";
   export let result: any;
   export let isListView: boolean = false;
   export let isDetailOn: boolean = false;
@@ -22,13 +22,13 @@ Ex
     </div>                
   </div>
   <div>
-    <img src={fixImageUrl(result.image_url, result.source)} />
+    <img src={imageFileUrl(result.image_url)} />
   </div>
 </div>
 {:else}
 <div class="search-results__grid-item">
   <div class="search-results__grid-item__image">
-    <img src={fixImageUrl(result.image_url, result.source)} alt="Generated image" />
+    <img src={imageFileUrl(result.image_url)} alt="Generated image" />
   </div>
   {#if isDetailOn}
   <div class="search-results__grid-item__content">

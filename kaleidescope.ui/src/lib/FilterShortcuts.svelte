@@ -4,6 +4,7 @@
   import { reduceFacetDistribution } from './functions/indexer_helpers.js';
   import { formatFacetValue } from './functions/convex_helpers.js';
   import { getWeekString } from './functions/date_helpers.js';
+  import { inputImageUrl } from './functions/uri_helpers.js';
   import { featureOn } from './growthbook';
   
   let showHiddenToggleFeature = featureOn("show_hidden_toggle");
@@ -12,11 +13,125 @@
 
   let { params = {}, onSearch, facets = {}, onRemoveFilter = (attr: string, val: string, expr?: string) => {}, onAddFilter = (kv: any) => {} } = $props();
   
+  type Shortcut = { type: string; value: string; label: string; facet?: string; group: 'date' | 'drilldown' };
+
   const weekdayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const weekdayShortLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentWeek = getWeekString(new Date());
+  const todayName = weekdayOrder[(new Date().getDay() + 6) % 7];
+  
+  function getSortedWeekKeys(reduced: any) {
+    if (reduced.week) {
+      return Object.keys(reduced.week).sort((a, b) => parseInt(a) - parseInt(b));
+    }
+
+    if (reduced.weekday) {
+      return Array.from(new Set(Object.keys(reduced.weekday).map(k => k.slice(0, 4))))
+        .sort((a: any, b: any) => parseInt(a) - parseInt(b)) as string[];
+    }
+
+    return [];
+  }
+  
+  function addSeparator(shortcuts: Shortcut[]) {
+    if (shortcuts.length > 0 && shortcuts[shortcuts.length - 1].type !== 'separator') {
+      shortcuts.push({ type: 'separator', value: '|', label: '|', group: 'date' });
+    }
+  }
+  
+  function buildCurrentWeekDayShortcuts(reduced: any): Shortcut[] {
+    if (reduced.weekday) {
+      const weekdayDays = Object.keys(reduced.weekday)
+        .filter(k => k.startsWith(currentWeek))
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .map(key => {
+          const dayIndex = parseInt(key.slice(4)) - 1;
+          const dayName = weekdayOrder[dayIndex];
+          const shortLabel = weekdayShortLabels[dayIndex];
+
+          if (!dayName || !shortLabel) return null;
+
+          return {
+            type: 'dynamic',
+            facet: 'thisweek_dayOfWeek',
+            value: `${currentWeek}:${dayName}`,
+            label: dayName === todayName ? 'Today' : shortLabel,
+            group: 'date'
+          };
+        })
+        .filter(Boolean) as Shortcut[];
+
+      if (weekdayDays.length > 0) return weekdayDays;
+    }
+
+    if (reduced.dayOfWeek && (!reduced.week || reduced.week[currentWeek])) {
+      return Object.keys(reduced.dayOfWeek)
+        .sort((a, b) => weekdayOrder.indexOf(a) - weekdayOrder.indexOf(b))
+        .map(dayName => {
+          const dayIndex = weekdayOrder.indexOf(dayName);
+          const shortLabel = weekdayShortLabels[dayIndex];
+
+          if (!shortLabel) return null;
+
+          return {
+            type: 'dynamic',
+            facet: 'thisweek_dayOfWeek',
+            value: `${currentWeek}:${dayName}`,
+            label: dayName === todayName ? 'Today' : shortLabel,
+            group: 'date'
+          };
+        })
+        .filter(Boolean) as Shortcut[];
+    }
+
+    return [];
+  }
+  
+  function buildTimeShortcuts(reduced: any): Shortcut[] {
+    const shortcuts: Shortcut[] = [];
+    const weekKeys = getSortedWeekKeys(reduced);
+    const previousWeekKeys = weekKeys
+      .filter(key => key !== currentWeek)
+      .sort((a, b) => parseInt(b) - parseInt(a))
+      .slice(0, 3)
+      .reverse();
+    const monthKeys = reduced.mm
+      ? Object.keys(reduced.mm).map(Number).sort((a, b) => b - a).slice(0, 3).reverse()
+      : [];
+    const currentWeekDays = buildCurrentWeekDayShortcuts(reduced);
+
+    if (monthKeys.length > 1) {
+      monthKeys.forEach(m => {
+        shortcuts.push({
+          type: 'dynamic',
+          facet: 'mm',
+          value: m.toString(),
+          label: monthNames[m - 1] || `M${m}`,
+          group: 'date'
+        });
+      });
+    }
+
+    if (previousWeekKeys.length > 0) {
+      if (shortcuts.length > 0) addSeparator(shortcuts);
+
+      previousWeekKeys.forEach(key => {
+        const shortLabel = key.length >= 2 ? key.slice(-2) : key;
+        shortcuts.push({ type: 'dynamic', facet: 'week', value: key, label: `W${shortLabel}`, group: 'date' });
+      });
+    }
+
+    if (currentWeekDays.length > 0) {
+      if (shortcuts.length > 0) addSeparator(shortcuts);
+      shortcuts.push(...currentWeekDays);
+    }
+
+    return shortcuts;
+  }
   
   function getVisibleShortcuts() {
-    const shortcuts: Array<{ type: string; value: string; label: string; facet?: string; group: 'date' | 'drilldown' }> = [];
+    const shortcuts: Shortcut[] = [];
     
     const reduced = reduceFacetDistribution(facets);
     
@@ -26,114 +141,10 @@
 
     const timeShortcuts: any[] = [];
     const drillDownShortcuts: any[] = [];
-    
-    // 1. Months: up to last 3 months of the current year (or latest available year)
-    if (reduced.mm && reduced.yy) {
-      // Find the most recent year in the facets
-      const years = Object.keys(reduced.yy).map(Number).sort((a, b) => b - a);
-      if (years.length > 0) {
-        const latestYear = years[0];
-        
-        // Find months for that year (we assume the mm facet is global, but usually
-        // if we are looking at recent data, the highest months are what we want)
-        // A more precise way is to just take the highest 3 month numbers
-        const monthKeys = Object.keys(reduced.mm)
-          .map(Number)
-          .sort((a, b) => b - a)
-          .slice(0, 3)
-          .reverse(); // reverse so it's M-2, M-1, M
 
-        monthKeys.forEach(m => {
-          timeShortcuts.push({ 
-            type: 'dynamic', 
-            facet: 'mm', 
-            value: m.toString(), 
-            label: monthNames[m - 1] || `M${m}`,
-            group: 'date' 
-          });
-        });
-      }
-    }
-    
-    // 2. Weeks: up to last 3 weeks
-    let currentWeek = getWeekString(new Date());
-    
-    // We only want to override the current real-world week if the user has a date-related filter active,
-    // otherwise the initial state should just be the current week.
-    const hasDateFilter = params.filter && (
-      params.filter.startsWith('week:') ||
-      params.filter.startsWith('weekday:') ||
-      params.filter.startsWith('thisweek_dayOfWeek:')
-    );
+    timeShortcuts.push(...buildTimeShortcuts(reduced));
 
-    // Use 'week' if available, fallback to 'weekday' logic if needed, but week is cleaner
-    if (reduced.week) {
-      const weekKeys = Object.keys(reduced.week)
-        .sort((a, b) => parseInt(b) - parseInt(a))
-        .slice(0, 3)
-        .reverse(); // W-3, W-2, W-1
-        
-      if (weekKeys.length > 0 && hasDateFilter) {
-        // We will need currentWeek for the dayOfWeek logic
-        // The highest week key before slice/reverse was weekKeys[weekKeys.length-1] (since we reversed it)
-        currentWeek = weekKeys[weekKeys.length - 1]; 
-      }
-
-      weekKeys.forEach(key => {
-        // Extract the last 2 digits for a shorter label, e.g., '2609' -> '09'
-        const shortLabel = key.length >= 2 ? key.slice(-2) : key;
-        timeShortcuts.push({ type: 'dynamic', facet: 'week', value: key, label: `W${shortLabel}`, group: 'date' });
-      });
-    } else if (reduced.weekday) {
-       // Fallback to old weekday logic if 'week' facet is missing
-       const weekKeys = Object.keys(reduced.weekday)
-        .sort((a, b) => parseInt(b) - parseInt(a))
-        .slice(0, 3)
-        .reverse();
-        
-       if (weekKeys.length > 0 && hasDateFilter) {
-         currentWeek = weekKeys[weekKeys.length - 1];
-       }
-
-       weekKeys.forEach(key => {
-         timeShortcuts.push({ type: 'dynamic', facet: 'weekday', value: key, label: `week ${key}`, group: 'date' });
-       });
-    }
-    
-    // 3. Days of Week: dynamically derived from the 'weekday' facet for the active week
-    if (reduced.weekday && currentWeek) {
-      // Extract days that belong to the currentWeek (e.g., '2610') from 'weekday' facet keys (e.g., '26101')
-      const daysInWeek = Object.keys(reduced.weekday)
-        .filter(k => k.startsWith(currentWeek))
-        .sort((a, b) => parseInt(a) - parseInt(b));
-
-      daysInWeek.forEach(key => {
-        // 'key' is e.g. '26101' where '1' is Monday.
-        // Javascript day 1 = Monday. Our weekdayOrder array has Monday at index 0.
-        const dayIndex = parseInt(key.slice(4)) - 1; 
-        const dayName = weekdayOrder[dayIndex];
-        
-        if (dayName) {
-          // Route it with the dayName, the router in App.svelte expects "thisweek_dayOfWeek:2610:Monday" 
-          // and translates it to filters for dayOfWeek=Monday AND week=2610
-          timeShortcuts.push({ type: 'dynamic', facet: 'thisweek_dayOfWeek', value: `${currentWeek}:${dayName}`, label: dayName, group: 'date' });
-        }
-      });
-    } else if (reduced.dayOfWeek) {
-      // Fallback if 'weekday' facet isn't available for some reason
-      const dayKeys = Object.keys(reduced.dayOfWeek).sort((a, b) => {
-        return weekdayOrder.indexOf(a) - weekdayOrder.indexOf(b);
-      });
-      dayKeys.forEach(key => {
-        if (currentWeek) {
-          timeShortcuts.push({ type: 'dynamic', facet: 'thisweek_dayOfWeek', value: `${currentWeek}:${key}`, label: key, group: 'date' });
-        } else {
-          timeShortcuts.push({ type: 'dynamic', facet: 'dayOfWeek', value: key, label: key, group: 'date' });
-        }
-      });
-    }
-
-    // 4. Progressive Drill-Down Facets (Models, Orientation, Time Bucket)
+    // Progressive Drill-Down Facets (Models, Orientation, Time Bucket)
     // Only show these if there's an active filter or custom filter, indicating we've drilled down.
     // reduceFacetDistribution handles dropping facets that no longer have a distribution.
     const hasActiveFilter = !!params.filter || (searchState.customFilters && searchState.customFilters.length > 0);
@@ -177,6 +188,8 @@
   
 
   function handleShortcutClick(shortcut: any) {
+    if (shortcut.type === 'separator') return;
+
     if (shortcut.type === 'static') {
       const filterString = shortcut.value;
       const isActive = params.filter === filterString;
@@ -217,6 +230,8 @@
   }
 
   function isShortcutActive(shortcut: any): boolean {
+    if (shortcut.type === 'separator') return false;
+
     if (shortcut.type === 'static') {
       return params.filter === shortcut.value;
     } else {
@@ -236,6 +251,22 @@
   let row1Shortcuts = $derived(dateShortcuts.length > 0 ? dateShortcuts : drillDownShortcuts);
   let row2Shortcuts = $derived(dateShortcuts.length > 0 ? drillDownShortcuts : []);
 
+  function formatActiveFacetLabel(facet: string, value: string) {
+    if (facet === 'mm') {
+      const monthIndex = Number(value) - 1;
+      return monthNames[monthIndex] || value;
+    }
+
+    if (facet === 'week') {
+      const shortLabel = value.length >= 2 ? value.slice(-2) : value;
+      return `W${shortLabel}`;
+    }
+
+    if (facet === 'weekday') return `week ${value}`;
+
+    return value;
+  }
+
   function getActiveFilterLabel() {
     if (!params.filter) return null;
     if (activeShortcut) return activeShortcut.label;
@@ -247,8 +278,7 @@
       const parts = params.filter.split(':');
       const facet = parts[0];
       const value = parts.slice(1).join(':');
-      if (facet === 'weekday') return `week ${value}`;
-      return value;
+      return formatActiveFacetLabel(facet, value);
     }
     return params.filter;
   }
@@ -300,12 +330,16 @@
 <div class="filter-shortcuts-container">
   <div class="filter-shortcuts row-1">
     {#each row1Shortcuts as shortcut}
-      <button 
-        class="filter-shortcuts__pill"
-        onclick={() => handleShortcutClick(shortcut)}
-      >
-        {shortcut.label}
-      </button>
+      {#if shortcut.type === 'separator'}
+        <span class="filter-shortcuts__separator" aria-hidden="true">|</span>
+      {:else}
+        <button 
+          class="filter-shortcuts__pill"
+          onclick={() => handleShortcutClick(shortcut)}
+        >
+          {shortcut.label}
+        </button>
+      {/if}
     {/each}
 
     <input
@@ -373,7 +407,7 @@
           onclick={() => onAddFilter({ attribute: 'inputs.value', value: imageName })}
           title={imageName}
         >
-          <img src={`/images/input/${imageName}`} alt={imageName} />
+          <img src={inputImageUrl(imageName)} alt={imageName} />
         </button>
       {/each}
     </div>
@@ -382,12 +416,16 @@
   {#if row2Shortcuts.length > 0}
     <div class="filter-shortcuts row-2">
       {#each row2Shortcuts as shortcut}
-        <button 
-          class="filter-shortcuts__pill"
-          onclick={() => handleShortcutClick(shortcut)}
-        >
-          {shortcut.label}
-        </button>
+        {#if shortcut.type === 'separator'}
+          <span class="filter-shortcuts__separator" aria-hidden="true">|</span>
+        {:else}
+          <button 
+            class="filter-shortcuts__pill"
+            onclick={() => handleShortcutClick(shortcut)}
+          >
+            {shortcut.label}
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -409,14 +447,6 @@
     flex-wrap: wrap; /* Important if many pills */
   }
 
-  .filter-shortcuts.row-1 {
-    /* Row 1 specific styles if needed */
-  }
-  
-  .filter-shortcuts.row-2 {
-    /* Row 2 specific styles if needed */
-  }
-
   .filter-shortcuts__pill {
     padding: 6px 14px;
     font-size: 12px;
@@ -434,6 +464,12 @@
     background-color: rgba(120, 120, 128, 0.08);
     border-color: rgba(120, 120, 128, 0.24);
     color: rgba(60, 60, 67, 0.8);
+  }
+
+  .filter-shortcuts__separator {
+    color: rgba(60, 60, 67, 0.28);
+    font-size: 12px;
+    line-height: 1;
   }
 
   .filter-shortcuts__pill.active {

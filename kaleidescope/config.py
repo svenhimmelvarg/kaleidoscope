@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
     "INDEX_NAME": "comfy_outputs_v110",
     "DATA_DIR": "./data",
     "COMFYUI_INSTANCE_BASE_PATH": "",
+    "COMFYUI_OUTPUT_PATH": "",
     "PORT": "8000",
     "HOST": "127.0.0.1",
     "KALEIDESCOPE_API_URL": "http://127.0.0.1:8000",
@@ -32,6 +33,7 @@ class Config:
     index_name: str
     data_dir: str
     comfyui_instance_base_path: str
+    comfyui_output_path: str
     output_folder_filter: str
     port: int
     host: str
@@ -74,6 +76,7 @@ def load_config() -> Config:
         comfyui_instance_base_path=get_op_value(
             "comfyui_instance_base_path", "COMFYUI_INSTANCE_BASE_PATH"
         ),
+        comfyui_output_path=get_op_value("comfyui_output_path", "COMFYUI_OUTPUT_PATH"),
         output_folder_filter=release_folder,
         port=int(port_val),
         host=str(host_val),

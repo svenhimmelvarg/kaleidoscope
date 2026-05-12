@@ -1,6 +1,6 @@
 <script>
   import { getContext } from 'svelte';
-  import { fixImageUrl } from "./functions/uri_helpers";
+  import { imageFileUrl, inputImageUrl } from "./functions/uri_helpers";
   import CollectionImagePicker from './CollectionImagePicker.svelte';
   import SearchResultGrid from './SearchResultGrid/SearchResultGrid.svelte';
   import { featureOn } from './growthbook';
@@ -23,7 +23,8 @@
     try {
       const filename = file.name || `camera_${Date.now()}.jpg`;
       const result = await assetController.upload(file, doc.source, filename);
-      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+      const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
+      if (!releaseFolder) throw new Error('VITE_RELEASE_FOLDER is not configured');
       const virtualPath = `virtual://${result.storageId}/${doc.source}/input/${releaseFolder}/${filename}`;
       onSelectImage(virtualPath);
     } catch (error) {
@@ -36,7 +37,8 @@
 
   let hashDocId = $derived.by(() => {
     if (!inputImage || !inputImage.value) return null;
-    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
+    if (!releaseFolder) return null;
     const regex = new RegExp(`${releaseFolder}s?\\/([a-f0-9]{32,64})\\.(png|mp4|jpg|jpeg|webp)$`, 'i');
     const match = inputImage.value.match(regex);
     if (match && match[1]) {
@@ -90,12 +92,12 @@
         }
       });
     });
-    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER || 'release';
+    const releaseFolder = import.meta.env.VITE_RELEASE_FOLDER;
     const releaseImages = [];
     const otherImages = [];
     
     images.forEach(img => {
-      if (img.startsWith(`${releaseFolder}/`)) {
+      if (releaseFolder && img.startsWith(`${releaseFolder}/`)) {
         releaseImages.push(img);
       } else {
         otherImages.push(img);
@@ -154,7 +156,7 @@
          <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
          {#each images as i }
          <div>
-            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{`/images/${doc.source}/input/${i}`}"
+            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src={inputImageUrl(i)}
               onclick = { () => {
                     onSelectImage(i)
                 }
@@ -171,7 +173,7 @@
          <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
          {#each hits as hit }
          <div>
-            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
+            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src={imageFileUrl(hit.image_url)}
               onclick = { () => {
                     onSelectImage(`local-output://${hit.id}||${hit.image_url}`)
                 }
@@ -188,7 +190,7 @@
          <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
          {#each hits as hit }
          <div>
-            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
+            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src={imageFileUrl(hit.image_url)}
               onclick = { () => {
                     onSelectImage(`local-output://${hit.id}||${hit.image_url}`)
                 }
@@ -205,7 +207,7 @@
          <div style="display:flex; flex-direction:row; flex-wrap:wrap; gap: 5px;">
          {#each hits as hit }
          <div>
-            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src="{fixImageUrl(hit.image_url, doc.source)}"
+            <img style="width:100px;height:100px;object-fit:cover;border-radius:4px" src={imageFileUrl(hit.image_url)}
               onclick = { () => {
                     onSelectImage(`local-output://${hit.id}||${hit.image_url}`)
                 }

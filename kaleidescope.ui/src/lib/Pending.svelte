@@ -5,6 +5,7 @@
   import { push } from 'svelte-spa-router';
   import InvokeController, { createInvokeController } from './controllers/InvokeController.js';
   import Notifications from "./Notifications.svelte";
+  import { inputImageUrl } from './functions/uri_helpers.js';
 
   let { params = {} } = $props();
 
@@ -350,7 +351,7 @@
 
         <div class="asset__inputs-images">
           {#each getImageInputs(notification) as i}
-            <img src={i.value.startsWith('virtual://') ? '/images/placeholder.png' : `/images/${i.value}`}
+            <img src={i.value.startsWith('virtual://') ? '/images/placeholder.png' : inputImageUrl(i.value)}
                  onpointerdown={(e) => handleStartPress(e, notification, i)}
                  onpointerup={(e) => handleEndPress(e, notification, i)}
                  onpointercancel={(e) => handleEndPress(e, notification, i)}

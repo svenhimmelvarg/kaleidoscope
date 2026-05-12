@@ -3,7 +3,7 @@
   import { api } from "../convex/_generated/api";
     import { Meilisearch } from 'meilisearch';
       import {getContext} from  'svelte'
-  import { fixImageUrl } from "./functions/uri_helpers";
+  import { imageFileUrl } from "./functions/uri_helpers";
   import { getSearchHost } from "./functions/convex_helpers";
 
     let {search , onclick = () =>  {}}  = $props() 
@@ -52,7 +52,7 @@
     {#each results.hits as h (h.id)}
         <div class="search-summary__item">
             
-             <img class="search-summary__image" src='{fixImageUrl(h.image_url, h.source)}'   alt="Generated image" /> 
+             <img class="search-summary__image" src={imageFileUrl(h.image_url)}   alt="Generated image" /> 
              <span> [X] </span>
         </div>
     {/each}

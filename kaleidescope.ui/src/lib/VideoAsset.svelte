@@ -1,5 +1,5 @@
 <script>
-  import { fixImageUrl } from "./functions/uri_helpers";
+  import { imageFileUrl } from "./functions/uri_helpers";
 
   let { doc, onFrameSelect = () => {} } = $props();
   let videoNode = $state();
@@ -160,7 +160,7 @@
   <video
     bind:this={videoNode}
     class="asset__image"
-    src={fixImageUrl(doc.image_url, doc.source)}
+    src={imageFileUrl(doc.image_url)}
     controls={!showScrubber}
     autoplay
     ontimeupdate={handleTimeUpdate}

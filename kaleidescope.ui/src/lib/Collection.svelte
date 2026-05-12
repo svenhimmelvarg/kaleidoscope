@@ -7,7 +7,7 @@ import {location, querystring, push} from 'svelte-spa-router'
 
 import {getContext} from 'svelte'
 import { getMeilisearchUrl } from './functions/convex_helpers.js';
-import { fixImageUrl } from './functions/uri_helpers';
+import { imageFileUrl } from './functions/uri_helpers';
 import Asset from './Asset.svelte';
 import Metrics from './Metrics.svelte';
 import { featureOn } from './growthbook';
@@ -137,7 +137,7 @@ let showTitle = $derived(!window.location.href.includes('collections'));
                         
                         <img
                             class="collection__item-image"
-                            src={fixImageUrl(doc.image_url, doc.source)}
+                            src={imageFileUrl(doc.image_url)}
                             alt="Generated image"
                             style="height:100%"
                         />
