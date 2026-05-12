@@ -536,7 +536,29 @@
 </div>
 
 <style>
+  :global(:root) {
+  }
+
   .filter-shortcuts-container {
+    --filter-shortcuts-surface: transparent;
+    --filter-shortcuts-surface-hover: rgba(120, 120, 128, 0.08);
+    --filter-shortcuts-surface-active: rgba(52, 199, 89, 0.15);
+    --filter-shortcuts-surface-active-hover: rgba(52, 199, 89, 0.2);
+    --filter-shortcuts-search-surface-focus: rgba(255, 255, 255, 0.5);
+    --filter-shortcuts-text: rgba(60, 60, 67, 0.6);
+    --filter-shortcuts-text-hover: rgba(60, 60, 67, 0.8);
+    --filter-shortcuts-text-active: #248a3d;
+    --filter-shortcuts-text-muted: rgba(60, 60, 67, 0.28);
+    --filter-shortcuts-text-label: var(--ui-text);
+    --filter-shortcuts-border: rgba(120, 120, 128, 0.16);
+    --filter-shortcuts-border-transparent: transparent;
+    --filter-shortcuts-border-hover: rgba(120, 120, 128, 0.24);
+    --filter-shortcuts-border-active: rgba(52, 199, 89, 0.4);
+    --filter-shortcuts-border-active-hover: rgba(52, 199, 89, 0.5);
+    --filter-shortcuts-border-focus: rgba(60, 60, 67, 0.4);
+    --filter-shortcuts-image-border-hover: rgba(120, 120, 128, 0.4);
+    --filter-shortcuts-image-shadow-hover: rgba(0, 0, 0, 0.1);
+
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -563,7 +585,7 @@
   }
 
   .filter-shortcuts__facet-label {
-    color: var(--ui-text);
+    color: var(--filter-shortcuts-text-label);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -577,49 +599,48 @@
     padding: 6px 14px;
     font-size: 12px;
     font-weight: 500;
-    color: rgba(60, 60, 67, 0.6);
-    background-color: transparent;
-    /* border: 1px solid rgba(120, 120, 128, 0.16);
-    border-radius: 16px; */
+    color: var(--filter-shortcuts-text);
+    background-color: var(--filter-shortcuts-surface);
+    border: 1px solid var(--filter-shortcuts-border-transparent);
     cursor: pointer;
     transition: all 0.2s ease;
     outline: none;
   }
 
   .filter-shortcuts__pill:hover {
-    background-color: rgba(120, 120, 128, 0.08);
-    border-color: rgba(120, 120, 128, 0.24);
-    color: rgba(60, 60, 67, 0.8);
+    background-color: var(--filter-shortcuts-surface-hover);
+    border-color: var(--filter-shortcuts-border-hover);
+    color: var(--filter-shortcuts-text-hover);
   }
 
   .filter-shortcuts__separator {
-    color: rgba(60, 60, 67, 0.28);
+    color: var(--filter-shortcuts-text-muted);
     font-size: 12px;
     line-height: 1;
   }
 
   .filter-shortcuts__pill.active {
-    background-color: rgba(52, 199, 89, 0.15);
-    border-color: rgba(52, 199, 89, 0.4);
-    color: #248a3d;
+    background-color: var(--filter-shortcuts-surface-active);
+    border-color: var(--filter-shortcuts-border-active);
+    color: var(--filter-shortcuts-text-active);
   }
 
   .filter-shortcuts__pill.active:hover {
-    background-color: rgba(52, 199, 89, 0.2);
-    border-color: rgba(52, 199, 89, 0.5);
+    background-color: var(--filter-shortcuts-surface-active-hover);
+    border-color: var(--filter-shortcuts-border-active-hover);
   }
 
   .filter-shortcuts__search {
     width: 150px;
     cursor: text;
-    border: 1px solid rgba(120, 120, 128, 0.16);
+    border: 1px solid var(--filter-shortcuts-border);
     border-radius: 16px;
 
   }
 
   .filter-shortcuts__search:focus {
-    border-color: rgba(60, 60, 67, 0.4);
-    background-color: rgba(255, 255, 255, 0.5);
+    border-color: var(--filter-shortcuts-border-focus);
+    background-color: var(--filter-shortcuts-search-surface-focus);
   }
 
   .filter-shortcuts__icon-btn {
@@ -627,9 +648,9 @@
     align-items: center;
     justify-content: center;
     padding: 6px;
-    color: rgba(60, 60, 67, 0.6);
-    background-color: transparent;
-    border: 1px solid rgba(120, 120, 128, 0.16);
+    color: var(--filter-shortcuts-text);
+    background-color: var(--filter-shortcuts-surface);
+    border: 1px solid var(--filter-shortcuts-border);
     border-radius: 50%;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -637,14 +658,14 @@
   }
 
   .filter-shortcuts__icon-btn:hover {
-    background-color: rgba(120, 120, 128, 0.08);
-    border-color: rgba(120, 120, 128, 0.24);
-    color: rgba(60, 60, 67, 0.8);
+    background-color: var(--filter-shortcuts-surface-hover);
+    border-color: var(--filter-shortcuts-border-hover);
+    color: var(--filter-shortcuts-text-hover);
   }
   .filter-shortcuts__icon-btn.active {
-    background-color: rgba(52, 199, 89, 0.15);
-    border-color: rgba(52, 199, 89, 0.4);
-    color: #248a3d;
+    background-color: var(--filter-shortcuts-surface-active);
+    border-color: var(--filter-shortcuts-border-active);
+    color: var(--filter-shortcuts-text-active);
   }
 
   .filter-shortcuts__advanced-images {
@@ -660,9 +681,9 @@
     height: 120px;
     padding: 0;
     margin: 0;
-    border: 1px solid rgba(120, 120, 128, 0.16);
+    border: 1px solid var(--filter-shortcuts-border);
     border-radius: 12px;
-    background-color: transparent;
+    background-color: var(--filter-shortcuts-surface);
     cursor: pointer;
     overflow: hidden;
     transition: all 0.2s ease;
@@ -670,8 +691,8 @@
   }
 
   .advanced-image-btn:hover {
-    border-color: rgba(120, 120, 128, 0.4);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--filter-shortcuts-image-border-hover);
+    box-shadow: 0 4px 12px var(--filter-shortcuts-image-shadow-hover);
   }
 
   .advanced-image-btn img {
