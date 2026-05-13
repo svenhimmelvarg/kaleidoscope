@@ -1,5 +1,5 @@
 <script>
-  import { imageFileUrl } from "./functions/uri_helpers";
+  import { imageFileUrl, isVideoDoc } from "./functions/uri_helpers";
 
   let { 
     mainResult,
@@ -18,25 +18,47 @@
 </script>
 
 {#if mainResult}
-  {@const mainIsVideo = mainResult.type === 'video' || mainResult.content_type?.includes('video') || mainResult.image_url?.endsWith('.mp4')}
+  {@const mainIsVideo = isVideoDoc(mainResult)}
   <div class="search-bentobox" onclick={handleClick}>
     <div class="search-bentobox__main">
-      <img 
-        src={mainIsVideo ? `/images/thumbnails/${mainResult.id}.jpg` : imageFileUrl(mainResult.image_url)} 
-        alt="Main result" 
-        class="search-bentobox__main-image" 
-      />
+      {#if mainIsVideo}
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video
+          src={imageFileUrl(mainResult.image_url)}
+          muted
+          playsinline
+          preload="metadata"
+          class="search-bentobox__main-image"
+        ></video>
+      {:else}
+        <img 
+          src={imageFileUrl(mainResult.image_url)} 
+          alt="Main result" 
+          class="search-bentobox__main-image" 
+        />
+      {/if}
     </div>
     {#if relatedResults.length > 0}
       <div class="search-bentobox__related">
         {#each relatedResults as related}
-          {@const relatedIsVideo = related.type === 'video' || related.content_type?.includes('video') || related.image_url?.endsWith('.mp4')}
+          {@const relatedIsVideo = isVideoDoc(related)}
           <div class="search-bentobox__related-item" onclick={(e) => handleRelatedClick(e, related)}>
-            <img 
-              src={relatedIsVideo ? `/images/thumbnails/${related.id}.jpg` : imageFileUrl(related.image_url)} 
-              alt="Related result" 
-              class="search-bentobox__related-image" 
-            />
+            {#if relatedIsVideo}
+              <!-- svelte-ignore a11y_media_has_caption -->
+              <video
+                src={imageFileUrl(related.image_url)}
+                muted
+                playsinline
+                preload="metadata"
+                class="search-bentobox__related-image"
+              ></video>
+            {:else}
+              <img 
+                src={imageFileUrl(related.image_url)} 
+                alt="Related result" 
+                class="search-bentobox__related-image" 
+              />
+            {/if}
           </div>
         {/each}
       </div>

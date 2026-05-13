@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { imageFileUrl } from "../functions/uri_helpers";
+  import { imageFileUrl, isVideoDoc } from "../functions/uri_helpers";
 
   
   let results = $props() 
@@ -27,8 +27,12 @@
         </div>                
       </div>
       <div>
-        <img src={imageFileUrl(r.image_url)} />
-        
+        {#if isVideoDoc(r)}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <video src={imageFileUrl(r.image_url)} muted playsinline preload="metadata"></video>
+        {:else}
+          <img src={imageFileUrl(r.image_url)} alt="Generated image" />
+        {/if}
       </div>
     </div>
   {/each}
@@ -64,5 +68,10 @@
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-size: 0.8rem;
+  }
+
+  .search-results__item img,
+  .search-results__item video {
+    max-width: 100%;
   }
 </style>

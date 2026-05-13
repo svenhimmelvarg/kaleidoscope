@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { imageFileUrl } from "../functions/uri_helpers";
+  import { imageFileUrl, isVideoDoc } from "../functions/uri_helpers";
   import { createInvokeController } from "../controllers/InvokeController.js";
   import Bookmarker from "../Bookmarker.svelte";
   import { getContext } from "svelte";
@@ -338,19 +338,34 @@
       {:else}
         <!-- Render normal grid items -->
         {#each groupItems as r}
-          {@const isVideo = r.type === 'video' || r.content_type?.includes('video') || r.image_url?.endsWith('.mp4')}
+          {@const isVideo = isVideoDoc(r)}
           {#if !(showSingle.display && showSingle.id === r.id)}
             <div class="search-results__grid-item">
               <div class="search-results__grid-item__image">
-                <img
-                  onclick={(e) => {
-                    toggleShowSingle(r);
-                    grabFocus(e);
-                    onSelect(r);
-                  }}
-                  src={isVideo ? `/images/thumbnails/${r.id}.jpg` : imageFileUrl(r.image_url)}
-                  alt="Generated image"
-                />
+                {#if isVideo}
+                  <!-- svelte-ignore a11y_media_has_caption -->
+                  <video
+                    onclick={(e) => {
+                      toggleShowSingle(r);
+                      grabFocus(e);
+                      onSelect(r);
+                    }}
+                    src={imageFileUrl(r.image_url)}
+                    muted
+                    playsinline
+                    preload="metadata"
+                  ></video>
+                {:else}
+                  <img
+                    onclick={(e) => {
+                      toggleShowSingle(r);
+                      grabFocus(e);
+                      onSelect(r);
+                    }}
+                    src={imageFileUrl(r.image_url)}
+                    alt="Generated image"
+                  />
+                {/if}
               </div>
               {#if isDetailOn}
                 <div class="search-results__grid-item__content">
@@ -522,7 +537,8 @@
     /* background-color: #f8f9fa; */
   }
 
-  .search-results__grid-item__image img {
+  .search-results__grid-item__image img,
+  .search-results__grid-item__image video {
     width: 100%;
     height: 100%;
     object-fit: cover;

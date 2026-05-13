@@ -1,6 +1,6 @@
 <script>
   import { getWeekString } from './functions/date_helpers.js';
-  import { imageFileUrl, inputImageUrl } from "./functions/uri_helpers";
+  import { imageFileUrl, inputImageUrl, isVideoDoc } from "./functions/uri_helpers";
   import { getContext } from 'svelte';
   import { useQuery } from 'convex-svelte';
   import { api } from "../convex/_generated/api.js";
@@ -466,13 +466,25 @@
   <div style="display: flex; gap: 0.25rem; overflow-x: auto; padding: 0.5rem; background: #fffbf5; border-radius: 12px; margin-bottom: 0.5rem;">
     {#each page.history as histId}
       {#if docCache[histId]}
-        {@const isVideo = docCache[histId].type === 'video' || docCache[histId].content_type?.includes('video') || docCache[histId].image_url?.endsWith('.mp4')}
-        <img 
-          src={isVideo ? `/images/thumbnails/${histId}.jpg` : imageFileUrl(docCache[histId].image_url)} 
-          alt="History item" 
-          style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; cursor: pointer;"
-          onclick={() => page.updateId(histId)}
-        />
+        {@const isVideo = isVideoDoc(docCache[histId])}
+        {#if isVideo}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <video
+            src={imageFileUrl(docCache[histId].image_url)}
+            muted
+            playsinline
+            preload="metadata"
+            style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; cursor: pointer;"
+            onclick={() => page.updateId(histId)}
+          ></video>
+        {:else}
+          <img 
+            src={imageFileUrl(docCache[histId].image_url)} 
+            alt="History item" 
+            style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; cursor: pointer;"
+            onclick={() => page.updateId(histId)}
+          />
+        {/if}
       {:else}
         <div style="width: 200px; height: 200px; background: #eee; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #999; cursor: pointer;" onclick={() => page.updateId(histId)}>
           {histId.substring(0, 8)}...
@@ -484,7 +496,7 @@
   {#await getDocument(page.id)}
     <div class="asset__loading">Loading asset...</div>
   {:then doc}
-    {@const isVideo = doc.type === 'video' || doc.content_type?.includes('video') || doc.image_url?.endsWith('.mp4')}
+    {@const isVideo = isVideoDoc(doc)}
 
     <div class="asset__container">
       <!-- Pinterest style image cell -->
@@ -528,10 +540,31 @@
               outputs.isLoading = false;
             }
           }} />
+        {:else if isVideo}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <video
+            class="asset__image"
+            src={imageFileUrl(doc.image_url)}
+            muted
+            playsinline
+            preload="metadata"
+            use:longpress={500}
+            onlongpress={() => { collapsed = !collapsed; }}
+            onclick={() => {
+              console.log("Asset:image:onSelect");
+              if (page.previousId == null){
+                onSelect()
+              }else{
+                page.updateId(page.previousId)
+              }
+            }}
+            style="cursor: pointer;"
+            title="Click to view, long press for settings"
+          ></video>
         {:else}
           <img
             class="asset__image"
-            src={isVideo ? `/images/thumbnails/${doc.id}.jpg` : imageFileUrl(doc.image_url)}
+            src={imageFileUrl(doc.image_url)}
             alt="Generated image"
             use:longpress={500}
             onlongpress={() => { collapsed = !collapsed; }}

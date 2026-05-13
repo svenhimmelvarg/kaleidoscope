@@ -537,12 +537,14 @@
 
 <style>
   :global(:root) {
+    --filter-shortcuts-surface-unselected: transparent;
+    --filter-shortcuts-surface-selected: rgba(52, 199, 89, 0.15);
   }
 
   .filter-shortcuts-container {
-    --filter-shortcuts-surface: transparent;
+    --filter-shortcuts-surface: var(--filter-shortcuts-surface-unselected);
     --filter-shortcuts-surface-hover: rgba(120, 120, 128, 0.08);
-    --filter-shortcuts-surface-active: rgba(52, 199, 89, 0.15);
+    --filter-shortcuts-surface-active: var(--filter-shortcuts-surface-selected);
     --filter-shortcuts-surface-active-hover: rgba(52, 199, 89, 0.2);
     --filter-shortcuts-search-surface-focus: rgba(255, 255, 255, 0.5);
     --filter-shortcuts-text: rgba(60, 60, 67, 0.6);
