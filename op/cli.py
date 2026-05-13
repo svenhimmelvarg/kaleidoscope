@@ -10,7 +10,13 @@ from op.commands.ingest import ingest as ingest_cmd
 from op.commands.supervisor import supervisor as supervisor_cmd
 from op.commands.start import start as start_cmd
 from op.commands.stop import stop as stop_cmd
-from op.workflow import workflow_invoke, workflow_get, workflow_lineage
+from op.workflow import (
+    workflow_get,
+    workflow_get_prompt,
+    workflow_invoke,
+    workflow_invoke_prompt,
+    workflow_lineage,
+)
 
 
 @click.group()
@@ -41,6 +47,8 @@ cli.add_command(start_cmd)
 cli.add_command(stop_cmd)
 cli.add_command(workflow_invoke)
 cli.add_command(workflow_get)
+cli.add_command(workflow_get_prompt)
+cli.add_command(workflow_invoke_prompt)
 cli.add_command(workflow_lineage)
 
 

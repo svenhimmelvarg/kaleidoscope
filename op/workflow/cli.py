@@ -2,6 +2,8 @@ import json
 import time
 import os
 import mimetypes
+import uuid
+from datetime import datetime
 import click
 import requests
 import logging
@@ -10,15 +12,95 @@ from op.config import ensure_config
 from op.workflow.core import (
     build_invoke_url,
     build_notification_url,
+    construct_asset_url,
     extract_outputs,
     is_local_image_path,
     compute_file_hash,
     construct_hashed_filename,
     replace_image_paths_in_payload,
 )
+from op.utils.api import get_workflow
 from kaleidescope.services.convex import get_client, generate_upload_url, save_asset
 
 logger = logging.getLogger(__name__)
+
+
+def _comfy_base_url() -> str:
+    return "http://127.0.0.1:8188"
+
+
+def _set_save_image_prefix(prompt: dict, prefix: str) -> int:
+    count = 0
+    for node in prompt.values():
+        if not isinstance(node, dict):
+            continue
+        class_type = node.get("class_type", "")
+        if "SaveImage" not in class_type:
+            continue
+        inputs = node.setdefault("inputs", {})
+        inputs["filename_prefix"] = prefix
+        count += 1
+    return count
+
+
+def _extract_comfy_outputs(history: dict, config) -> list[dict]:
+    outputs = []
+    instance_name = os.path.basename(config.comfyui_instance_base_path.rstrip("/\\"))
+    for output_data in history.get("outputs", {}).values():
+        media_items = []
+        if "images" in output_data:
+            media_items.extend(output_data["images"])
+        if "gifs" in output_data:
+            media_items.extend(output_data["gifs"])
+
+        for item in media_items:
+            subfolder = item.get("subfolder", "")
+            filename = item.get("filename", "")
+            if not filename:
+                continue
+            file_path = os.path.abspath(
+                os.path.join(config.comfyui_instance_base_path, "output", subfolder, filename)
+            )
+            uri = f"/images/{instance_name}/output/{subfolder}/{filename}"
+            outputs.append({"file_path": file_path, "url": construct_asset_url(config.kaleidescope_ui_url, uri)})
+    return outputs
+
+
+def _queue_prompt_and_wait(prompt: dict, config) -> list[dict]:
+    client_id = str(uuid.uuid4())
+    comfy_url = _comfy_base_url()
+
+    try:
+        response = requests.post(
+            f"{comfy_url}/prompt", json={"prompt": prompt, "client_id": client_id}, timeout=30
+        )
+        response.raise_for_status()
+        prompt_id = response.json().get("prompt_id")
+    except requests.exceptions.RequestException as e:
+        click.echo(f"Error queueing prompt: {e}", err=True)
+        raise SystemExit(1)
+
+    if not prompt_id:
+        click.echo("ComfyUI did not return a prompt_id.", err=True)
+        raise SystemExit(1)
+
+    start = time.time()
+    while time.time() - start < 300:
+        try:
+            response = requests.get(f"{comfy_url}/history/{prompt_id}", timeout=30)
+            response.raise_for_status()
+            history = response.json().get(prompt_id)
+        except requests.exceptions.RequestException as e:
+            click.echo(f"Error checking ComfyUI history: {e}", err=True)
+            raise SystemExit(1)
+
+        if history and "outputs" in history:
+            return _extract_comfy_outputs(history, config)
+
+        time.sleep(2)
+
+    click.echo("Timed out waiting for ComfyUI prompt completion.", err=True)
+    raise SystemExit(1)
 
 
 @click.command(name="workflow:invoke", no_args_is_help=True)
@@ -130,7 +212,7 @@ def workflow_invoke(workflow_id: str, input_file: str):
     if replacements:
         payload = replace_image_paths_in_payload(payload, replacements)
 
-    invoke_url = build_invoke_url(api_url, workflow_id)
+    invoke_url = build_invoke_url(api_url, workflow_id, config.invoke_method)
 
     # Send the invoke request
     try:
@@ -246,6 +328,51 @@ def workflow_get(workflow_id: str):
 
     extracted = extract_workflow_fields(doc)
     click.echo(json.dumps(extracted, indent=2))
+
+
+@click.command(name="workflow:get-prompt", no_args_is_help=True)
+@click.argument("workflow_id")
+def workflow_get_prompt(workflow_id: str):
+    """Get the raw ComfyUI API prompt JSON for a workflow/document ID."""
+    config = ensure_config()
+
+    try:
+        prompt = get_workflow(config, workflow_id)
+    except SystemExit:
+        raise
+    except Exception as e:
+        click.echo(f"Failed to fetch prompt for workflow '{workflow_id}': {e}", err=True)
+        raise SystemExit(1)
+
+    click.echo(json.dumps(prompt, indent=2))
+
+
+@click.command(name="workflow:invoke-prompt", no_args_is_help=True)
+@click.argument("prompt_file", type=click.Path(exists=True, dir_okay=False))
+def workflow_invoke_prompt(prompt_file: str):
+    """Invoke a ComfyUI API prompt JSON after setting SaveImage output prefixes."""
+    config = ensure_config()
+
+    try:
+        with open(prompt_file, "r") as f:
+            prompt = json.load(f)
+    except json.JSONDecodeError as e:
+        click.echo(f"Error parsing prompt JSON: {e}", err=True)
+        raise SystemExit(1)
+
+    if not isinstance(prompt, dict):
+        click.echo("Prompt JSON must be a ComfyUI API prompt object.", err=True)
+        raise SystemExit(1)
+
+    now = datetime.now()
+    prefix = f"{config.release_folder or 'release'}/{now.day}-{now.month}/img"
+    changed = _set_save_image_prefix(prompt, prefix)
+    if changed == 0:
+        click.echo("No SaveImage nodes found in prompt JSON.", err=True)
+        raise SystemExit(1)
+
+    outputs = _queue_prompt_and_wait(prompt, config)
+    click.echo(json.dumps(outputs, indent=2))
 
 @click.command(name="workflow:lineage", no_args_is_help=True)
 @click.argument("workflow_id")

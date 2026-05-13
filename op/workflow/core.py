@@ -14,8 +14,9 @@ class WorkflowOutput:
         return {"file_path": self.file_path, "url": self.url}
 
 
-def build_invoke_url(api_url: str, workflow_id: str) -> str:
-    return f"{api_url.rstrip('/')}/workflow/{workflow_id}/invoke"
+def build_invoke_url(api_url: str, workflow_id: str, invoke_method: str = "invoke") -> str:
+    method = invoke_method or "invoke"
+    return f"{api_url.rstrip('/')}/workflow/{workflow_id}/{method}"
 
 
 def build_notification_url(api_url: str, notification_id: str) -> str:
