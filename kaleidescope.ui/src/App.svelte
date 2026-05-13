@@ -147,7 +147,7 @@ setContext("search.client",new Meilisearch({
     /* min-height: 100vh; */
     /* background-color: #f5f5f7; */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    max-width:1880px;
+    /* max-width:1880px; */
     /* padding: 0 8px; */
   }
 
